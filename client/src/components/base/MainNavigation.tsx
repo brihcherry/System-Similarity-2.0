@@ -14,17 +14,9 @@ const navigationButtons: {
 		text: "Home",
 	},
 	{
-		path: "/legacy",
-		text: "Legacy Heatmap",
-	},
-	{
 		path: "/heatmap",
 		text: "System Similarity Heatmap",
-	},
-	{
-		path: "/debug",
-		text: "Debug",
-	},
+	}
 ];
 
 /**

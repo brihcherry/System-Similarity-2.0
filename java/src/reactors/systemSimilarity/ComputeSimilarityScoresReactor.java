@@ -11,7 +11,6 @@ import prerna.sablecc2.om.PixelDataType;
 import prerna.sablecc2.om.PixelOperationType;
 import prerna.sablecc2.om.nounmeta.NounMetadata;
 import reactors.AbstractProjectReactor;
-import reactors.examples.GetSystemSimilarityDataSourcesReactor;
 
 /**
  * Computes overall similarity scores for every system pair by aggregating

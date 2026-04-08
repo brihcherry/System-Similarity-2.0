@@ -1,9 +1,7 @@
 import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
 import { ROUTE_PATH_LOGIN_PAGE } from "@/routes.constants";
-import { DebugParamDataPage } from "./DebugParamDataPage";
 import { ErrorPage } from "./ErrorPage";
 import { HomePage } from "./HomePage";
-import { SystemSimilarityPage } from "./LegacyHeatmap";
 import { LoginPage } from "./LoginPage";
 import { SystemSimilarityHeatmapPage } from "./SystemSimilarityHeatmapPage";
 import { AuthorizedLayout, InitializedLayout } from "./layouts";
@@ -25,14 +23,6 @@ const router = createHashRouter([
 						// If the path is empty, use the home page
 						index: true,
 						Component: HomePage,
-					},
-					{
-						path: "/legacy",
-						Component: SystemSimilarityPage,
-					},
-					{
-						path: "/debug",
-						Component: DebugParamDataPage,
 					},
 					{
 						path: "/heatmap",
