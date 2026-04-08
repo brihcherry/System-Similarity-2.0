@@ -1,14 +1,8 @@
-# System Similarity Heatmap (Dev Version)
+# System Similarity Heatmap
 
 ## Overview
 
-This repository provides an app to inspect both old and new implementations of the System Similarity Heatmap. This includes:
-
-- A heatmap generated with legacy API endpoints
-- A heatmap generated using new reactors (doesn't rely on legacy backend)
-- Debugging tools that provide insight to the old legacy backend & verify the new pipeline's results at different steps of the similarity score calculation 
-
----
+This repository provides an app that generates a heatmap visualization of system similarity scores.
 
 ## Prerequisites
 
@@ -26,8 +20,8 @@ Before using this repository, ensure you have the following:
 - **Install Python as part of the SEMOSS installation**
   You'll need this for parts of the linting pipeline and just generally is a good thing to have. Refer to [Mac Install](https://workshop.cfg.deloitte.com/docs/Advanced%20Installation/Mac%20Developer%20Install#install-python) or [Windows Install](https://workshop.cfg.deloitte.com/docs/windows-developer-install#install-python)
 
--  **Install TAP-Specific Apps and Dependencies (Including Legacy System)**
-  You'll need this in order to run the debugging tools and legacy heatmap. If this isn't installed, none of the reactors will register in Pixel and the app will not run.
+-  **Install TAP-specific database**
+  You'll need this in order to populate the heatmap with data.
 
 ---
 
@@ -118,9 +112,7 @@ This repository includes several tools to help maintain code quality:
 
 ## Next Steps
 
-- See `client/README.md` for front-end development instructions.
-- See `java/README.md` for back-end/reactor development.
-- See `test/README.md` for comprehensive testing guide and workflow.
+- See `java/README.md` for back-end/reactor docs.
 
 ---
 
