@@ -35,7 +35,7 @@ The reactor executes 7 SPARQL query groups against the RDF engine. Each query re
 #### Post-Processing
 
 1. **Chart transform** — Raw scores (0–1) are scaled to 0–100, self-comparison pairs are excluded, and results are keyed as `"System1-System2"` for heatmap display.
-2. **Pruning** — Pairs that exist in *all* 7 variables and whose simple average score is ≤ 50 are removed from every variable. Pairs present in only some variables are left untouched.
+2. **Pruning** — Pairs that exist in *all* 7 variables and whose simple average score is ≤ 50 are removed from every variable. Pairs present in only some variables are left untouched. This pruning is necessary to improve performance and decrease computational demands. 
 3. **Caching** — The processed `paramDataHash` (7 buckets of chart-ready pair scores) and `keyHash` (pair key → system name mapping) are stored in the insight var-store for Stage 2.
 
 ### Stage 2 — `ComputeSimilarityScores`

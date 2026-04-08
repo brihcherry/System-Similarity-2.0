@@ -45,7 +45,7 @@ export const MainNavigation = () => {
 								className="h-12"
 							/>
 							<h1 className="text-xl font-bold whitespace-nowrap">
-								SEMOSS Template
+								SEMOSS
 							</h1>
 						</button>
 					) : (
@@ -56,7 +56,7 @@ export const MainNavigation = () => {
 								className="h-12"
 							/>
 							<h1 className="text-xl font-bold whitespace-nowrap">
-								SEMOSS Template
+								SEMOSS
 							</h1>
 						</div>
 					)}
