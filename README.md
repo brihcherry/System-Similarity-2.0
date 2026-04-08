@@ -112,7 +112,7 @@ This repository includes several tools to help maintain code quality:
 
 ## Next Steps
 
-- See `java/README.md` for back-end/reactor docs.
+- See `java/README.md` for backend reactor docs.
 
 ---
 
