@@ -1,0 +1,129 @@
+# System Similarity Heatmap (Dev Version)
+
+## Overview
+
+This repository provides an app to inspect both old and new implementations of the System Similarity Heatmap. This includes:
+
+- A heatmap generated with legacy API endpoints
+- A heatmap generated using new reactors (doesn't rely on legacy backend)
+- Debugging tools that provide insight to the old legacy backend & verify the new pipeline's results at different steps of the similarity score calculation 
+
+---
+
+## Prerequisites
+
+Before using this repository, ensure you have the following:
+
+- **SEMOSS installed locally:**  
+  [SEMOSS Windows Installation Guide](https://workshop.cfg.deloitte.com/docs/windows-developer-install)  
+  [SEMOSS Mac Installation Guide](https://workshop.cfg.deloitte.com/docs/Advanced%20Installation/Mac%20Developer%20Install) 
+
+  To verify installation, go to [http://localhost:9090/SemossWeb/packages/client/dist/#/](http://localhost:9090/SemossWeb/packages/client/dist/#/). The SEMOSS UI should load.
+
+- **Basic Git knowledge:**  
+  [Using SSH keys with GitHub](https://docs.github.com/en/authentication/connecting-to-github-with-ssh) is recommended for authentication.
+
+- **Install Python as part of the SEMOSS installation**
+  You'll need this for parts of the linting pipeline and just generally is a good thing to have. Refer to [Mac Install](https://workshop.cfg.deloitte.com/docs/Advanced%20Installation/Mac%20Developer%20Install#install-python) or [Windows Install](https://workshop.cfg.deloitte.com/docs/windows-developer-install#install-python)
+
+-  **Install TAP-Specific Apps and Dependencies (Including Legacy System)**
+  You'll need this in order to run the debugging tools and legacy heatmap. If this isn't installed, none of the reactors will register in Pixel and the app will not run.
+
+---
+
+## Creating a SEMOSS Pro-Code App
+
+1. **Open the SEMOSS UI:**  
+   Go to [http://localhost:9090/SemossWeb/packages/client/dist/#/](http://localhost:9090/SemossWeb/packages/client/dist/#/) (referred to as "the SEMOSS UI").
+
+2. **Create a new app:**
+    - Navigate to the "App" page (usually on the left sidebar).
+    - Click "Create New App".
+    - Choose to develop your app in code (not Drag & Drop).
+    - Enter a name and description (e.g., `YourAppName`).
+    - Submit to create the app. You'll be taken to the editor page.
+    - Note the long string in the URL—this is your app's ID (`your-app-id`), e.g., `1337e31c-2131-4ef4-b942-94bdffa65c3f`.
+
+---
+
+## Understanding the App File Structure
+
+- In the SEMOSS UI editor, you'll see a file explorer showing a `portals` folder.
+- The explorer is displaying the contents of the `assets` folder; `portals` is inside `assets`.
+- `assets` is the main folder for your app's code.
+
+**On your computer:**
+
+- Go to `workspace/Semoss/project/[YourAppName]_[your-app-id]/app_root/version/`
+- Inside `version`, you'll find the `assets` folder, which contains `portals` and `portals/index.html`.
+- The `assets` folder in your file system and the one in the SEMOSS UI are the same.
+
+---
+
+## Publishing Your App
+
+To make changes visible to users:
+
+1. In the SEMOSS UI, open and edit `portals/index.html`.
+2. Click "Save".
+3. Changes are not public until you click "Publish files".
+4. After publishing, refresh the App tab to see updates.
+
+> **Note:**  
+> The published snapshot is stored at  
+> `workspace/apache-tomcat-9.0.102/webapps/Monolith/public_home/your-app-id`.
+
+---
+
+## Creating a React App Using This Repository
+
+### Clone the Template
+
+1. In your file explorer, go to  
+   `workspace/Semoss/project/[YourAppName]_[YourAppID]/app_root/version/`
+2. Rename `assets` to `old-assets`.
+3. Open a terminal in your `app_root/version` folder.
+4. Clone this repository:
+   `git clone git@github.com:SEMOSS/Template.git`, if using SSH keys
+   `git clone https://github.com/SEMOSS/Template.git`, if not using SSH keys
+5. Rename the cloned `Template` folder to `assets`.
+6. Open `assets` in your code editor (VS Code recommended).
+
+---
+
+## SEMOSS App Structure
+
+- The "Publish files" button in the SEMOSS UI creates a snapshot for users.
+- The `portals` folder contains files available to users, including `portals/index.html` (the app's main entry point).
+- Front-end source code typically lives in the `client` folder and is bundled into `portals` using Webpack (see `client/README.md` for details).
+- Back-end Java reactors are in the `java` folder. When you click "Recompile reactors" in the SEMOSS UI, SEMOSS compiles these and places `.class` files in the `classes` folder (see `java/README.md` for more).
+
+---
+
+## Plug-ins
+
+This repository includes several tools to help maintain code quality:
+
+- [Biome](https://biomejs.dev/): Formats and lints your front-end code for consistency.
+- [lint-staged](https://github.com/okonet/lint-staged): Runs formatting and linting on staged files before each commit to prevent bad code from being pushed.
+    - Note: if you are a Mac user, and your commits are erroring out with the message `" not foundECURSIVE_EXEC_FIRST_FAIL  Command "lint-staged`, then you likely need to change your line-endings in `./husky/pre-commit` and `./husky/commit-msg` from CRLF to LF.
+- [commitizen](https://www.conventionalcommits.org/en/v1.0.0/): This pre-commit hook uses conventional commit syntax. Check this link out to understand how to format your commit messages. Here are some common examples:
+    - `feat: Major feature added`
+    - `docs: Documentation changed/updated`
+    - `fix: Bug fixed and code restored to working state`
+    - `refactor(style): Changed some code around to adhere to better style`
+    - `chore: Some update/chore that you've been needing to do`
+
+---
+
+## Next Steps
+
+- See `client/README.md` for front-end development instructions.
+- See `java/README.md` for back-end/reactor development.
+- See `test/README.md` for comprehensive testing guide and workflow.
+
+---
+
+## Support
+
+For questions or issues, contact the SEMOSS team or refer to internal documentation.
