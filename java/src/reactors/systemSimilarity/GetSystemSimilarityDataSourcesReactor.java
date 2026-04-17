@@ -7,9 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import prerna.sablecc2.om.GenRowStruct;
 import prerna.sablecc2.om.PixelDataType;
 import prerna.sablecc2.om.ReactorKeysEnum;
@@ -71,8 +68,6 @@ import reactors.utils.SimilarityFunctions;
  */
 public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReactor {
 
-  private static final Logger LOGGER = LogManager.getLogger(GetSystemSimilarityDataSourcesReactor.class);
-
   /** System property key for default engine UUID used when database is not provided. */
   private static final String DEFAULT_ENGINE_ID = "133db94b-4371-4763-bff9-edf7e5ed021b";
 
@@ -94,11 +89,11 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
   /** Bucket name constants matching legacy playsheet paramDataHash keys. */
   private static final String BUCKET_BP = "Business_Processes_Supported";
   private static final String BUCKET_ACT = "Activities_Supported";
-  private static final String BUCKET_DATA_BLU = "Data_and_Business_Logic_Supported";
-  private static final String BUCKET_THEATER = "Deployment_(Theater/Garrison)";
+  private static final String BUCKET_THEATER = "Environment";
   private static final String BUCKET_TRANSACTIONAL = "Transactional_(Yes/No)";
   private static final String BUCKET_USERS = "User_Types";
-  private static final String BUCKET_UI = "User_Interface_Types_(PC/Mobile/etc.)";
+  private static final String BUCKET_DATA_OBJ = "Data_Subject_Area";
+  private static final String BUCKET_INTERFACE = "Interfaces";
 
   /** Default SystemUser bindings appended when no system filter is provided (legacy behavior). */
   private static final String DEFAULT_SYSTEM_USER_BINDINGS =
@@ -120,7 +115,7 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
 
   public GetSystemSimilarityDataSourcesReactor() {
     this.keysToGet = new String[] {
-        ReactorKeysEnum.DATABASE.getKey(),  // engine UUID (required)
+        ReactorKeysEnum.DATABASE.getKey(),   // engine UUID (required)
         "systemList",                        // optional system filter
         "systemQuery"                        // optional query filter
     };
@@ -148,23 +143,23 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
       keyHash.clear();
       rawScores.clear();
 
-      // ── 4. Execute 7 queries sequentially and collect results ──────────────────
-      Map<String, Map<String, Double>> dataBluRaw = executeDataBLUQueries();
+      // ── 4. Execute queries sequentially and collect results ───────────────────
+      Map<String, Map<String, Double>> dataObjectRaw = executeDataObjectQueries();
+      Map<String, Map<String, Double>> interfaceRaw = executeSystemInterfaceQueries();
       Map<String, Map<String, Double>> theaterRaw = executeTheaterQuery();
       Map<String, Map<String, Double>> transactionalRaw = executeTransactionalQuery();
       Map<String, Map<String, Double>> businessProcessesRaw = executeBusinessProcessesQuery();
       Map<String, Map<String, Double>> activitiesRaw = executeActivitiesQuery();
       Map<String, Map<String, Double>> usersRaw = executeUsersQuery();
-      Map<String, Map<String, Double>> uiRaw = executeUIQuery();
 
       // Match legacy flow: after each query + similarity function call, transform via processHashForCharting.
-      processAndStoreBucket(BUCKET_DATA_BLU, dataBluRaw);
+      processAndStoreBucket(BUCKET_DATA_OBJ, dataObjectRaw);
+      processAndStoreBucket(BUCKET_INTERFACE, interfaceRaw);
       processAndStoreBucket(BUCKET_THEATER, theaterRaw);
       processAndStoreBucket(BUCKET_TRANSACTIONAL, transactionalRaw);
       processAndStoreBucket(BUCKET_BP, businessProcessesRaw);
       processAndStoreBucket(BUCKET_ACT, activitiesRaw);
       processAndStoreBucket(BUCKET_USERS, usersRaw);
-      processAndStoreBucket(BUCKET_UI, uiRaw);
 
       // ── 5. Prune paramDataHash (legacy calculateHash + flattenData behavior) ────
       // Remove pairs from ALL variables if they exist in every variable and
@@ -275,15 +270,8 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
 
     allSystems = similarityFunctions.createComparisonObjectList(engineId, defaultSystemsQuery);
     similarityFunctions.setComparisonObjectList(allSystems);
-    systemLabelMap = SimilarityChartingUtils.buildSystemLabelMap(allSystems);
-    // LOGGER.info("[SYS-LIST] Engine ID: {}", engineId);
-    // LOGGER.info("[SYS-LIST] Total systems fetched: {}", allSystems.size());
-    // LOGGER.info("[SYS-LIST] Systems: {}", allSystems);
-    // LOGGER.info("[SYS-LIST] Query used: {}", defaultSystemsQuery);
-    System.out.println("[SYS-LIST] Engine ID: " + engineId);
-    System.out.println("[SYS-LIST] Total systems fetched: " + allSystems.size());
-    System.out.println("[SYS-LIST] Systems: " + allSystems);
-    System.out.println("[SYS-LIST] Query used: " + defaultSystemsQuery);
+  systemLabelMap = SimilarityChartingUtils.buildSystemLabelMap(allSystems);
+    // LOGGER.info("Found " + allSystems.size() + " systems for analysis");
   }
 
   /**
@@ -304,9 +292,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
 
     if (chartData != null && !chartData.isEmpty()) {
       paramDataHash.put(bucketName, chartData);
-      LOGGER.info("[BUCKET:{}] Pair count after chart transform: {}", bucketName, chartData.size());
-    } else {
-      LOGGER.info("[BUCKET:{}] No chart data produced.", bucketName);
     }
   }
 
@@ -336,61 +321,33 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
       return;
     }
 
-    // BEFORE pruning debugging
-    int totalPairsBefore = 0;
-    for (Map<String, Map<String, Object>> varMap : paramDataHash.values()) {
-      totalPairsBefore += varMap.size();
-    }
-    LOGGER.info("[PRUNING] Total pair entries before: {}", totalPairsBefore);
-
-    // Mirror legacy orderedVars behavior: iterate from smallest variable first.
-    List<String> orderedVars = new ArrayList<>(paramDataHash.keySet());
-    orderedVars.sort((a, b) -> {
-      int sizeCmp = Integer.compare(paramDataHash.get(a).size(), paramDataHash.get(b).size());
-      if (sizeCmp != 0) {
-        return sizeCmp;
+    // Find intersection of pair keys across ALL variables
+    Set<String> intersection = null;
+    for (Map<String, Map<String, Object>> varPairs : paramDataHash.values()) {
+      if (intersection == null) {
+        intersection = new HashSet<>(varPairs.keySet());
+      } else {
+        intersection.retainAll(varPairs.keySet());
       }
-      return a.compareTo(b);
-    });
+    }
 
-    String minVar = orderedVars.get(0);
-    List<String> masterKeys = new ArrayList<>(paramDataHash.get(minVar).keySet());
-    if (masterKeys.isEmpty()) {
-      LOGGER.info("[PRUNING] No pairs found in intersection; nothing to prune.");
+    if (intersection == null || intersection.isEmpty()) {
       return;
     }
 
-    LOGGER.info("[PRUNING] Common pair keys candidate count (smallest var): {}", masterKeys.size());
-
+    // For each pair in the intersection, compute average score across all vars.
+    // If avg <= 50, mark for removal from ALL variables.
     List<String> toRemove = new ArrayList<>();
-    for (String pairKey : masterKeys) {
-      double score = 0.0;
-      boolean storeCell = true;
-
-      // Legacy-style accumulation order: orderedVars from smallest onward.
-      for (String var : orderedVars) {
-        Map<String, Object> cell = paramDataHash.get(var).get(pairKey);
-        if (cell == null) {
-          storeCell = false;
-          break;
-        }
-
-        Object scoreObj = cell.get("Score");
-        if (!(scoreObj instanceof Number)) {
-          storeCell = false;
-          break;
-        }
-
-        double varScore = ((Number) scoreObj).doubleValue();
-        score += varScore / totalVars;
+    for (String pairKey : intersection) {
+      double sum = 0.0;
+      for (Map<String, Map<String, Object>> varPairs : paramDataHash.values()) {
+        Map<String, Object> cell = varPairs.get(pairKey);
+        Object scoreObj = cell != null ? cell.get("Score") : null;
+        double varScore = scoreObj instanceof Number ? ((Number) scoreObj).doubleValue() : 0.0;
+        sum += varScore;
       }
-
-      if (!storeCell) {
-        continue;
-      }
-
-      // Match legacy flattenData gate exactly: keep only when score > 50.
-      if (!(score > 50.0)) {
+      double score = sum / totalVars;
+      if (score <= 50.0) {
         toRemove.add(pairKey);
       }
     }
@@ -401,17 +358,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
         varPairs.remove(pairKey);
       }
     }
-
-    // After pruning debugging
-    LOGGER.info("[PRUNING] Pairs removed (avg score <= 50): {}", toRemove.size());
-    int sampleEnd = Math.min(10, toRemove.size());
-    LOGGER.info("[PRUNING] Sample removed pairs: {}", toRemove.subList(0, sampleEnd));
-
-    int totalPairsAfter = 0;
-    for (Map<String, Map<String, Object>> varMap : paramDataHash.values()) {
-      totalPairsAfter += varMap.size();
-    }
-    LOGGER.info("[PRUNING] Total pair entries after: {}", totalPairsAfter);
   }
 
   /**
@@ -459,45 +405,54 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
   }
 
   /**
-  * Execute both Data and BLU queries and return CRM-aware pairwise scores.
-  * Returns: Map<System, Map<System, Score>>
+   * Execute DataObject query and compute simple set-overlap pairwise scores 
+   * (same method as most other categories)
+   * removed CRM weighting 
    */
-  private Map<String, Map<String, Double>> executeDataBLUQueries() {
-    // ── Data Query ───────────────────────────────────────────────────────────
-    String dataQuery =
-        "SELECT DISTINCT ?System ?Data ?CRM WHERE {"
+  private Map<String, Map<String, Double>> executeDataObjectQueries() {
+    String query =
+        "SELECT DISTINCT ?System ?Data WHERE {"
         + "{?System <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
         + "<http://semoss.org/ontologies/Concept/System>}"
         + "{?Data <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
         + "<http://semoss.org/ontologies/Concept/DataObject>}"
         + "{?Provide <http://www.w3.org/2000/01/rdf-schema#subPropertyOf> "
         + "<http://semoss.org/ontologies/Relation/Provide>}"
-        + "{?Provide <http://semoss.org/ontologies/Relation/Contains/CRM> ?CRM}"
         + "{?System ?Provide ?Data}"
         + "{?System ?UsedBy ?SystemUser}"
         + "}";
-    dataQuery = appendBindings(dataQuery);
+    query = appendBindings(query);
 
-    // ── BLU Query ────────────────────────────────────────────────────────────
-    String bluQuery =
-        "SELECT DISTINCT ?System ?BLU WHERE {"
+    return similarityFunctions.compareObjectParameterScore(
+        engineId,
+        query,
+        SimilarityFunctions.VALUE);
+  }
+
+
+  /**
+   * Execute SystemInterface queries and compute simple set-overlap pairwise scores.
+   * Captures both directions of the interface relationship:
+   * - System Provides SystemInterface
+   * - SystemInterface Consumes System
+   */
+  private Map<String, Map<String, Double>> executeSystemInterfaceQueries() {
+    String query =
+        "SELECT DISTINCT ?System ?SystemInterface WHERE {"
         + "{?System <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
         + "<http://semoss.org/ontologies/Concept/System>}"
-        + "{?BLU <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
-        + "<http://semoss.org/ontologies/Concept/BusinessLogicUnit>}"
-        + "{?System <http://semoss.org/ontologies/Relation/Provide> ?BLU}"
+        + "{?SystemInterface <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
+        + "<http://semoss.org/ontologies/Concept/SystemInterface>}"
+        + "{{?System <http://semoss.org/ontologies/Relation/Provide> ?SystemInterface}"
+        + " UNION "
+        + "{?SystemInterface <http://semoss.org/ontologies/Relation/Consume> ?System}}"
         + "{?System ?UsedBy ?SystemUser}"
         + "}";
-    bluQuery = appendBindings(bluQuery);
+    query = appendBindings(query);
 
-    // Legacy-equivalent Data/BLU path:
-    // 1) createTable(dataQuery) -> data hash with CRM
-    // 2) createTable(bluQuery) -> inject BLUs as CRM "C"
-    // 3) pairwise CRM-aware similarity matrix
-    return similarityFunctions.getDataBLUDataSet(
+    return similarityFunctions.compareObjectParameterScore(
         engineId,
-        dataQuery,
-        bluQuery,
+        query,
         SimilarityFunctions.VALUE);
   }
 
@@ -557,28 +512,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
         + "{?Personnel <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
         + "<http://semoss.org/ontologies/Concept/Personnel>}"
         + "{?System <http://semoss.org/ontologies/Relation/UsedBy> ?Personnel}"
-        + "{?System ?UsedBy ?SystemUser}"
-        + "}";
-    query = appendBindings(query);
-
-    return similarityFunctions.compareObjectParameterScore(
-      engineId,
-      query,
-      SimilarityFunctions.VALUE);
-  }
-
-  /**
-   * Execute User Interface query and convert results.
-   * Returns: Map<System, Set<UITypeURI>>
-   */
-  private Map<String, Map<String, Double>> executeUIQuery() {
-    String query =
-        "SELECT DISTINCT ?System ?UserInterface WHERE {"
-        + "{?System <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
-        + "<http://semoss.org/ontologies/Concept/System>}"
-        + "{?UserInterface <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
-        + "<http://semoss.org/ontologies/Concept/UserInterface>}"
-        + "{?System <http://semoss.org/ontologies/Relation/Utilizes> ?UserInterface}"
         + "{?System ?UsedBy ?SystemUser}"
         + "}";
     query = appendBindings(query);

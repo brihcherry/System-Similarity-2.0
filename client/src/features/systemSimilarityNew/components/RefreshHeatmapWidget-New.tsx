@@ -6,11 +6,11 @@ import {
 } from "../utils/formatRefreshPayload-New";
 
 export const DEFAULT_REFRESH_VARIABLES = [
-    "Deployment_(Theater/Garrison)",
+    "Environment",
     "Business_Processes_Supported",
     "User_Types",
-    "Data_and_Business_Logic_Supported",
-    "User_Interface_Types_(PC/Mobile/etc.)",
+    "Data_Subject_Area",
+    "Interfaces",
     "Activities_Supported",
     "Transactional_(Yes/No)",
 ] as const;
