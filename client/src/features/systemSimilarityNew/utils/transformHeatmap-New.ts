@@ -7,26 +7,48 @@ export type ColorScheme = "red" | "blue" | "green" | "traffic-light";
  * Converts flat [System1, System2, Score] rows into a directional matrix
  * with sorted x-axis (System1) and y-axis (System2) labels and min/max bounds.
  *
+ * If {@code allSystems} and {@code systemLabelMap} are provided, the heatmap matrix will
+ * include all those systems as axes (normalized to labels), even if some have no similarity
+ * data. This is useful for showing the complete requested universe (e.g., all DBS systems)
+ * even if some lack RDF data.
+ *
  * Only pairs that appear in the data will have an entry in matrix[row][col].
  * Cells with no data are represented by the absence of a key (undefined lookup).
  */
-export function transformHeatmap(output: OutputResponse): HeatmapMatrix {
+export function transformHeatmap(
+    output: OutputResponse,
+    allSystems?: string[],
+    systemLabelMap?: Record<string, string>,
+): HeatmapMatrix {
     const outputWithPercentiles = buildOutputWithPercentiles(output);
 
-    const xSystemSet = new Set<string>();
-    const ySystemSet = new Set<string>();
+    let xSystems: string[];
+    let ySystems: string[];
     let minScore = Infinity;
     let maxScore = -Infinity;
 
-    for (const [s1, s2, score] of outputWithPercentiles.data) {
-        xSystemSet.add(s1);
-        ySystemSet.add(s2);
-        if (score < minScore) minScore = score;
-        if (score > maxScore) maxScore = score;
-    }
+    if (allSystems && allSystems.length > 0 && systemLabelMap) {
+        // Convert URIs to their corresponding labels using the systemLabelMap
+        const normalizedSystems = allSystems
+            .map((uri) => systemLabelMap[uri] || uri) // Use label if found, else use URI as-is
+            .sort();
+        xSystems = normalizedSystems;
+        ySystems = normalizedSystems;
+    } else {
+        // Derive systems from the data alone (fallback for non-DBS mode)
+        const xSystemSet = new Set<string>();
+        const ySystemSet = new Set<string>();
 
-    const xSystems = Array.from(xSystemSet).sort();
-    const ySystems = Array.from(ySystemSet).sort();
+        for (const [s1, s2, score] of outputWithPercentiles.data) {
+            xSystemSet.add(s1);
+            ySystemSet.add(s2);
+            if (score < minScore) minScore = score;
+            if (score > maxScore) maxScore = score;
+        }
+
+        xSystems = Array.from(xSystemSet).sort();
+        ySystems = Array.from(ySystemSet).sort();
+    }
 
     // Pre-populate so every y-axis system has an (initially empty) inner record.
     const matrix: HeatmapMatrix["matrix"] = {};
@@ -35,9 +57,15 @@ export function transformHeatmap(output: OutputResponse): HeatmapMatrix {
     }
 
     // Keep directionality: System1 maps to x-axis and System2 maps to y-axis.
+    // Populate scores from the data (data contains labels, not URIs).
     for (const [s1, s2, score, percentile] of outputWithPercentiles.data) {
+        if (score < minScore) minScore = score;
+        if (score > maxScore) maxScore = score;
         const cell = { score, percentile };
-        matrix[s2][s1] = cell;
+        // s1 and s2 are labels from the reactor output, so they should match ySystem/xSystem keys
+        if (matrix[s2]) {
+            matrix[s2][s1] = cell;
+        }
     }
 
     return {

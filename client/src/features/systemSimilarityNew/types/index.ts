@@ -32,12 +32,25 @@ export interface OutputResponse {
     headers: [string, string, string];
     /** Each row: [system1Name, system2Name, scoreValue] */
     data: SimilarityRow[];
+    /** All systems in the comparison universe, including those with no similarity data. */
+    allSystems?: string[];
+    /** URI to label mapping for all systems. */
+    systemLabelMap?: Record<string, string>;
 }
 
 /** Request payload for refreshing the heatmap with selected variables and weights. */
 export interface RefreshHeatmapRequest {
     selectedVars: string[];
     specifiedWeights?: Partial<Record<string, number>>;
+}
+
+/** Optional request knobs for selecting the loaded system universe. */
+export interface HeatmapRequestOptions {
+    dbsOnly?: boolean;
+    /** When true, skip re-running GetSystemSimilarityDataSources and use
+     * whatever data is already cached in the var-store. Set this on Refresh
+     * calls when the dbsOnly toggle hasn't changed since the last full load. */
+    skipDataSourcesReload?: boolean;
 }
 
 // ── Transformed / app-level shapes ───────────────────────────────────────────

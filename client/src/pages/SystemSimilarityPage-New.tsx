@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAppContext } from "@/contexts";
 import {
     fetchInitialHeatmapFromReactor,
@@ -22,6 +22,11 @@ export const SystemSimilarityPageNew = () => {
     const [error, setError] = useState<string | null>(null);
     const [colorScheme, setColorScheme] = useState<ColorScheme>("red");
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [dbsOnly, setDbsOnly] = useState(false);
+    // Tracks which dbsOnly value the var-store was last populated with.
+    // Used to avoid re-running GetSystemSimilarityDataSources on Refresh
+    // when the toggle hasn't changed since the last full load.
+    const loadedDbsOnlyRef = useRef<boolean | null>(null);
     const [displayMode, setDisplayMode] = useState<"score" | "percentile">("score");
     const [minDisplayScore, setMinDisplayScore] = useState(0);
     const [maxDisplayScore, setMaxDisplayScore] = useState(100);
@@ -34,11 +39,20 @@ export const SystemSimilarityPageNew = () => {
 
         setIsLoading(true);
         setError(null);
+        setRefreshError(null);
+        setRefreshedData(null);
 
-        fetchInitialHeatmapFromReactor(runPixel)
+        fetchInitialHeatmapFromReactor(runPixel, { dbsOnly })
             .then((output) => {
                 if (!cancelled) {
-                    setData(transformHeatmap(output));
+                    loadedDbsOnlyRef.current = dbsOnly;
+                    // Only pass allSystems/systemLabelMap for DBS mode so all
+                    // requested systems appear on the axes. Default mode derives
+                    // axes purely from the data (legacy behavior).
+                    const heatmap = dbsOnly
+                        ? transformHeatmap(output, output.allSystems, output.systemLabelMap)
+                        : transformHeatmap(output);
+                    setData(heatmap);
                 }
             })
             .catch((err: unknown) => {
@@ -59,7 +73,7 @@ export const SystemSimilarityPageNew = () => {
         return () => {
             cancelled = true;
         };
-    }, [runPixel]);
+    }, [runPixel, dbsOnly]);
 
     const displayData = refreshedData ?? data;
     const effectiveMinDisplayScore = Math.min(minDisplayScore, maxDisplayScore);
@@ -75,8 +89,18 @@ export const SystemSimilarityPageNew = () => {
         setRefreshError(null);
 
         try {
-            const output = await refreshHeatmapOutput(payload, runPixel);
-            setRefreshedData(transformHeatmap(output));
+            // Only re-run GetSystemSimilarityDataSources if the toggle changed
+            // since the last full load; otherwise the var-store already has the
+            // correct subset data and we can go straight to scoring.
+            const needsReload = loadedDbsOnlyRef.current !== dbsOnly;
+            const output = await refreshHeatmapOutput(payload, runPixel, {
+                dbsOnly,
+                skipDataSourcesReload: !needsReload,
+            });
+            const heatmap = dbsOnly
+                ? transformHeatmap(output, output.allSystems, output.systemLabelMap)
+                : transformHeatmap(output);
+            setRefreshedData(heatmap);
         } catch (err: unknown) {
             setRefreshError(
                 err instanceof Error
@@ -118,6 +142,36 @@ export const SystemSimilarityPageNew = () => {
                                 Hide
                             </button>
                         </div>
+
+                        <div className="space-y-2">
+                            <div>
+                                <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                    DBS Systems Similarity Map
+                                </h3>
+                                <p className="mt-1 text-xs text-gray-500 leading-relaxed">
+                                    Limit the heatmap to the predefined DBS systems subset.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setDbsOnly((current) => !current)}
+                                aria-pressed={dbsOnly}
+                                className="flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-700 hover:bg-gray-100"
+                            >
+                                <span className="font-semibold text-gray-600">All Systems</span>
+                                <span className="relative mx-3 inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full bg-gray-200 transition-colors">
+                                    <span
+                                        className={`inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                                            dbsOnly ? "translate-x-5" : "translate-x-0.5"
+                                        }`}
+                                    />
+                                </span>
+                                <span className="font-semibold text-gray-600">DBS Only</span>
+                            </button>
+                        </div>
+
+                        <hr className="my-4" />
 
                         <div className="space-y-2">
                             <div>
