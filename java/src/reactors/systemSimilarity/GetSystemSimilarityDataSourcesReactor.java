@@ -86,6 +86,9 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
   /** Var-store key for caching the raw (pre-processHashForCharting) scores per variable. */
   public static final String VARSTORE_RAW_SCORES = "SYS_SIM_RAW_SCORES";
 
+  /** Var-store key for whether current run is DBS label mode. */
+  public static final String VARSTORE_DBS_MODE = "SYS_SIM_DBS_MODE";
+
   /** Bucket name constants matching legacy playsheet paramDataHash keys. */
   private static final String BUCKET_BP = "Business_Processes_Supported";
   private static final String BUCKET_ACT = "Activities_Supported";
@@ -107,6 +110,12 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
   private String systemQuery;
   private String bindingsClause;
   private List<String> allSystems;
+  /**
+   * Non-null when {@code systemList} contains plain labels rather than absolute URIs.
+   * In that case {@code bindingsClause} falls back to the default SystemUser bindings and
+   * {@code fetchAllSystems} post-filters the full result down to just these labels.
+   */
+  private List<String> labelsToFilter;
   private Map<String, String> systemLabelMap = new HashMap<>();
   private final Map<String, Map<String, Map<String, Object>>> paramDataHash = new HashMap<>();
   private final Map<String, Map<String, Object>> keyHash = new HashMap<>();
@@ -164,7 +173,11 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
       // ── 5. Prune paramDataHash (legacy calculateHash + flattenData behavior) ────
       // Remove pairs from ALL variables if they exist in every variable and
       // their simple average score across all variables is ≤ 50.
-      pruneParamDataHash();
+      // Skip pruning in DBS label mode so all requested DBS systems retain
+      // their computed pairs for downstream charting.
+      if (labelsToFilter == null || labelsToFilter.isEmpty()) {
+        pruneParamDataHash();
+      }
 
       Map<String, Object> result = new HashMap<>();
       // Keep raw contract keys for downstream compatibility.
@@ -203,6 +216,12 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
           VARSTORE_RAW_SCORES,
           new NounMetadata(rawScores, PixelDataType.MAP));
 
+        // Cache DBS-mode state for downstream reactors (e.g. ComputeSimilarityScores).
+        boolean dbsMode = labelsToFilter != null && !labelsToFilter.isEmpty();
+        this.insight.getVarStore().put(
+          VARSTORE_DBS_MODE,
+          new NounMetadata(dbsMode, PixelDataType.BOOLEAN));
+
       return new NounMetadata(result, PixelDataType.MAP);
 
     } catch (Exception e) {
@@ -236,16 +255,39 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
   /**
    * Build the SPARQL BINDINGS clause to be appended to each query.
    * Uses systemList if provided; otherwise uses default SystemUser bindings.
+   *
+   * <p>If {@code systemList} contains plain labels (not absolute URIs), the values cannot
+   * be placed directly into a SPARQL BINDINGS clause as IRIs.  In that case the method
+   * falls back to the default SystemUser bindings so that all systems are returned by
+   * the query, and stores the labels in {@code labelsToFilter} so that
+   * {@link #fetchAllSystems()} can restrict the comparison list after the label map is built.
    */
   private void buildBindingsClause() {
     if (systemList != null && !systemList.isEmpty()) {
-      // Build BINDINGS ?System {(<uri1>)(<uri2>)...}
-      StringBuilder sb = new StringBuilder("BINDINGS ?System {");
-      for (String systemUri : systemList) {
-        sb.append("(<").append(systemUri).append(">)");
+      // Determine whether the caller supplied absolute URIs or plain labels.
+      // An absolute URI must start with a scheme such as "http://" or "https://".
+      boolean allAbsoluteUris = true;
+      for (String value : systemList) {
+        if (value == null || (!value.startsWith("http://") && !value.startsWith("https://"))) {
+          allAbsoluteUris = false;
+          break;
+        }
       }
-      sb.append("}");
-      bindingsClause = sb.toString();
+
+      if (allAbsoluteUris) {
+        // Build BINDINGS ?System {(<uri1>)(<uri2>)...}
+        StringBuilder sb = new StringBuilder("BINDINGS ?System {");
+        for (String systemUri : systemList) {
+          sb.append("(<").append(systemUri).append(">)");
+        }
+        sb.append("}");
+        bindingsClause = sb.toString();
+      } else {
+        // Labels received (e.g. "JOMIS", "DODTR") — cannot be used as SPARQL IRIs.
+        // Fall back to default SystemUser bindings and post-filter by label in fetchAllSystems.
+        labelsToFilter = new ArrayList<>(systemList);
+        bindingsClause = DEFAULT_SYSTEM_USER_BINDINGS;
+      }
     } else if (systemQuery != null && !systemQuery.isEmpty()) {
       // Use systemQuery as-is (caller has provided the full BINDINGS/VALUES clause)
       bindingsClause = systemQuery;
@@ -269,8 +311,48 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
     defaultSystemsQuery = appendBindings(defaultSystemsQuery);
 
     allSystems = similarityFunctions.createComparisonObjectList(engineId, defaultSystemsQuery);
+    systemLabelMap = SimilarityChartingUtils.buildSystemLabelMap(allSystems);
+
+    // When plain labels were supplied (e.g. DBS system list), ensure allSystems includes all
+    // requested labels, even if some have no matching data in the RDF repository.  This must
+    // happen AFTER buildSystemLabelMap so the reverse-lookup is available.  Systems without
+    // data will appear in the heatmap but have no similarity scores.
+    if (labelsToFilter != null && !labelsToFilter.isEmpty()) {
+      // Normalise requested labels to lower-case for case-insensitive matching
+      Set<String> requestedLower = new HashSet<>();
+      Map<String, String> requestedOriginal = new HashMap<>(); // preserve original casing
+      for (String lbl : labelsToFilter) {
+        requestedLower.add(lbl.toLowerCase());
+        requestedOriginal.put(lbl.toLowerCase(), lbl);
+      }
+
+      // Find which requested labels have matching URIs in the database
+      Set<String> matchedLabels = new HashSet<>();
+      List<String> filteredSystems = new ArrayList<>();
+      for (String uri : allSystems) {
+        String label = systemLabelMap.get(uri);
+        if (label != null && requestedLower.contains(label.toLowerCase())) {
+          filteredSystems.add(uri);
+          matchedLabels.add(label.toLowerCase());
+        }
+      }
+
+      // For any requested labels that have no matching data in the RDF repository, create
+      // synthetic URIs so they still appear in the heatmap matrix as empty rows/columns.
+      // This ensures UI consistency: the user requested these systems, so they should all appear.
+      for (String requestedLabel : requestedLower) {
+        if (!matchedLabels.contains(requestedLabel)) {
+          String originalLabel = requestedOriginal.get(requestedLabel);
+          String syntheticUri = "http://semoss.org/temp/system/" + originalLabel;
+          filteredSystems.add(syntheticUri);
+          systemLabelMap.put(syntheticUri, originalLabel);
+        }
+      }
+
+      allSystems = filteredSystems;
+    }
+
     similarityFunctions.setComparisonObjectList(allSystems);
-  systemLabelMap = SimilarityChartingUtils.buildSystemLabelMap(allSystems);
     // LOGGER.info("Found " + allSystems.size() + " systems for analysis");
   }
 

@@ -2,6 +2,7 @@ package reactors.systemSimilarity;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,8 @@ import reactors.AbstractProjectReactor;
  *   <li>If {@code specifiedWeights} contains a minimum for this variable and
  *       the score is below it → skip the pair entirely.</li>
  *   <li>Accumulate in legacy order: {@code score += (varScore / totalVars)}.</li>
- *   <li>After all vars: if {@code score > 50} → include in output.</li>
+ *   <li>After all vars: if DBS mode is off and {@code score <= 50} → skip pair;
+ *       if DBS mode is on, keep pair regardless of this threshold.</li>
  * </ol>
  *
  * <h3>Prerequisites</h3>
@@ -92,6 +94,17 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
     Map<String, Map<String, Object>> keyHash =
         (Map<String, Map<String, Object>>) khNoun.getValue();
+
+    // ── 3b. Load DBS-mode flag from var-store (default false) ─────────────────
+    boolean dbsMode = false;
+    NounMetadata dbsModeNoun = this.insight.getVarStore()
+        .get(GetSystemSimilarityDataSourcesReactor.VARSTORE_DBS_MODE);
+    if (dbsModeNoun != null) {
+      Object modeVal = dbsModeNoun.getValue();
+      if (modeVal instanceof Boolean) {
+        dbsMode = (Boolean) modeVal;
+      }
+    }
 
     // ── 4. Determine which variables to use ──────────────────────────────────
     Set<String> availableVars = paramDataHash.keySet();
@@ -177,8 +190,8 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
       totalPairsEvaluated++;
 
-      // Keep pairs strictly above 50 to match legacy flatten behavior
-      if (score <= 50.0) {
+      // Keep legacy threshold behavior for non-DBS runs only.
+      if (!dbsMode && score <= 50.0) {
         continue;
       }
 
@@ -189,7 +202,23 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
       rows.add(new Object[] { parts[0], parts[1], score });
     }
 
-    // ── 7. Build response ────────────────────────────────────────────────────
+    // ── 7. Retrieve allSystems from var-store ───────────────────────────────
+    List<String> allSystems = new ArrayList<>();
+    NounMetadata allSystemsNoun = this.insight.getVarStore()
+        .get(GetSystemSimilarityDataSourcesReactor.VARSTORE_ALL_SYSTEMS);
+    if (allSystemsNoun != null && allSystemsNoun.getValue() instanceof List) {
+      allSystems = (List<String>) allSystemsNoun.getValue();
+    }
+
+    // ── 8. Retrieve systemLabelMap from var-store ───────────────────────────
+    Map<String, String> systemLabelMap = new HashMap<>();
+    NounMetadata systemLabelMapNoun = this.insight.getVarStore()
+        .get(GetSystemSimilarityDataSourcesReactor.VARSTORE_SYSTEM_LABEL_MAP);
+    if (systemLabelMapNoun != null && systemLabelMapNoun.getValue() instanceof Map) {
+      systemLabelMap = (Map<String, String>) systemLabelMapNoun.getValue();
+    }
+
+    // ── 9. Build response ────────────────────────────────────────────────────
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("headers", new String[] { "System1", "System2", "Score" });
     result.put("data", rows);
@@ -197,6 +226,8 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     result.put("minimumWeightsUsed", minimumWeights);
     result.put("totalPairsEvaluated", totalPairsEvaluated);
     result.put("pairsAboveThreshold", pairsAboveThreshold);
+    result.put("allSystems", allSystems);
+    result.put("systemLabelMap", systemLabelMap);
 
     return new NounMetadata(result, PixelDataType.MAP, PixelOperationType.OPERATION);
   }
