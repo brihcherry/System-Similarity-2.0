@@ -5,3 +5,7 @@ import { twMerge } from "tailwind-merge";
 export const cn = (...inputs: ClassValue[]) => {
 	return twMerge(clsx(inputs));
 };
+
+/** Converts underscore-separated identifiers to human-readable display names. */
+export const formatDisplayName = (name: string): string =>
+	name.replace(/_/g, " ");

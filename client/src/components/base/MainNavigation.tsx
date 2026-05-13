@@ -10,10 +10,6 @@ const navigationButtons: {
 	text: string;
 }[] = [
 	{
-		path: "/",
-		text: "Home",
-	},
-	{
 		path: "/heatmap",
 		text: "System Similarity Heatmap",
 	}

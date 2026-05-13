@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { RefreshHeatmapRequest } from "../types";
+import { formatDisplayName } from "../../../lib/utils"
 import {
     formatRefreshHeatmapPayload,
     type RefreshVariableChoice,
@@ -88,7 +89,7 @@ export const RefreshHeatmapWidgetNew = ({
                                         htmlFor={`refresh-var-new-${choice.name}`}
                                         className="block text-xs font-medium text-gray-700 break-words"
                                     >
-                                        {choice.name}
+                                        {formatDisplayName(choice.name)}
                                     </label>
                                     <div className="mt-2">
                                         <input

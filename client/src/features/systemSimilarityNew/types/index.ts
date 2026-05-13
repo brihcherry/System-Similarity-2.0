@@ -81,8 +81,10 @@ export interface TooltipState {
     y: number;
     rowSystem: string;
     colSystem: string;
-    score: number;
-    percentile: number;
+    score?: number;
+    percentile?: number;
+    /** Undefined means a normal data cell. */
+    status?: "no-data" | "filtered-out" | "self";
 }
 
 // ── Debug / introspection shapes ─────────────────────────────────────────────

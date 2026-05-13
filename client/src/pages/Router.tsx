@@ -1,7 +1,6 @@
 import { createHashRouter, Navigate, RouterProvider } from "react-router-dom";
 import { ROUTE_PATH_LOGIN_PAGE } from "@/routes.constants";
 import { ErrorPage } from "./ErrorPage";
-import { HomePage } from "./HomePage";
 import { LoginPage } from "./LoginPage";
 import { SystemSimilarityHeatmapPage } from "./SystemSimilarityHeatmapPage";
 import { AuthorizedLayout, InitializedLayout } from "./layouts";
@@ -20,9 +19,9 @@ const router = createHashRouter([
 				ErrorBoundary: ErrorPage,
 				children: [
 					{
-						// If the path is empty, use the home page
+						// If the path is empty, redirect to the heatmap
 						index: true,
-						Component: HomePage,
+						Component: () => <Navigate to="/heatmap" />,
 					},
 					{
 						path: "/heatmap",
@@ -36,9 +35,9 @@ const router = createHashRouter([
 				Component: LoginPage,
 			},
 			{
-				// Any other urls should be sent to the home page
+				// Any other urls should be sent to the heatmap
 				path: "*",
-				Component: () => <Navigate to="/" />,
+				Component: () => <Navigate to="/heatmap" />,
 			},
 		],
 	},

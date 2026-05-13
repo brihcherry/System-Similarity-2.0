@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useState, type MouseEvent } from "react";
 import type { HeatmapMatrix, TooltipState } from "../types";
 import { scoreToColor, type ColorScheme } from "../utils/transformHeatmap-New";
+import { formatDisplayName } from "../../../lib/utils"
 
 interface HeatmapGridProps {
     data: HeatmapMatrix;
@@ -8,6 +9,7 @@ interface HeatmapGridProps {
     displayMode?: "score" | "percentile";
     minDisplayScore?: number;
     maxDisplayScore?: number;
+    dbsMode?: boolean;
 }
 
 const CELL_PX = 32;
@@ -20,6 +22,7 @@ export const HeatmapGridNew = ({
     displayMode = "score",
     minDisplayScore = 0,
     maxDisplayScore = 100,
+    dbsMode = false,
 }: HeatmapGridProps) => {
     const { xSystems, ySystems, matrix, minScore, maxScore } = data;
     const metricLabel = displayMode === "percentile" ? "Percentile" : "Score";
@@ -33,8 +36,9 @@ export const HeatmapGridNew = ({
             e: MouseEvent<HTMLDivElement>,
             rowSystem: string,
             colSystem: string,
-            score: number,
-            percentile: number,
+            score?: number,
+            percentile?: number,
+            status?: "no-data" | "filtered-out" | "self",
         ) => {
             setTooltip({
                 x: e.clientX + 12,
@@ -43,6 +47,7 @@ export const HeatmapGridNew = ({
                 colSystem,
                 score,
                 percentile,
+                status,
             });
         },
         [],
@@ -81,14 +86,14 @@ export const HeatmapGridNew = ({
                         className="inline-block w-4 h-4 rounded-sm align-middle mr-1"
                         style={{ backgroundColor: "#f3f4f6" }}
                     />
-                    no data
+                    {dbsMode ? "no data" : "Score \u2264 50"}
                 </span>
                 <span className="text-xs text-gray-400">
                     <span
                         className="inline-block w-4 h-4 rounded-sm align-middle mr-1 border border-gray-200"
                         style={{ backgroundColor: "#f9fafb" }}
                     />
-                    filtered out
+                    Filtered Out
                 </span>
             </div>
 
@@ -106,8 +111,8 @@ export const HeatmapGridNew = ({
                     style={{ height: COL_HEADER_PX }}
                 >
                     <div className="h-full w-full px-2 py-2 text-[10px] text-gray-500 leading-tight">
-                        <div>Y axis: System2</div>
-                        <div>X axis: System1</div>
+                        <div>X-Axis: System 1</div>
+                        <div>Y-Axis: System 2</div>
                     </div>
                 </div>
 
@@ -130,7 +135,7 @@ export const HeatmapGridNew = ({
                                 display: "block",
                             }}
                         >
-                            {sys}
+                            {formatDisplayName(sys)}
                         </span>
                     </div>
                 ))}
@@ -147,12 +152,13 @@ export const HeatmapGridNew = ({
                                 className="text-[10px] text-gray-600 font-medium truncate"
                                 style={{ maxWidth: ROW_HEADER_PX - 12 }}
                             >
-                                {rowSys}
+                                {formatDisplayName(rowSys)}
                             </span>
                         </div>
 
                         {/* Data cells */}
                         {xSystems.map((colSys) => {
+                            const isSelf = rowSys === colSys;
                             const cell = matrix[rowSys]?.[colSys] ?? undefined;
                             const rawMetricValue = cell
                                 ? displayMode === "percentile"
@@ -165,6 +171,12 @@ export const HeatmapGridNew = ({
                                 rawMetricValue <= maxDisplayScore
                                     ? rawMetricValue
                                     : undefined;
+
+                            const cellStatus: "self" | "no-data" | "filtered-out" | undefined =
+                                isSelf ? "self"
+                                : !cell ? "no-data"
+                                : visibleMetricValue === undefined ? "filtered-out"
+                                : undefined;
 
                             const bgColor =
                                 rawMetricValue !== undefined
@@ -185,26 +197,19 @@ export const HeatmapGridNew = ({
                                         width: CELL_PX,
                                         height: CELL_PX,
                                         backgroundColor: bgColor,
-                                        cursor:
-                                            rawMetricValue !== undefined
-                                                ? "crosshair"
-                                                : "default",
+                                        cursor: cell !== undefined ? "crosshair" : "default",
                                     }}
-                                    onMouseEnter={
-                                        cell !== undefined
-                                            ? (e) =>
-                                                  handleMouseEnter(
-                                                      e,
-                                                      rowSys,
-                                                      colSys,
-                                                      cell.score,
-                                                      cell.percentile,
-                                                  )
-                                            : undefined
+                                    onMouseEnter={(e) =>
+                                        handleMouseEnter(
+                                            e,
+                                            rowSys,
+                                            colSys,
+                                            cell?.score,
+                                            cell?.percentile,
+                                            cellStatus,
+                                        )
                                     }
-                                    onMouseLeave={
-                                        cell !== undefined ? handleMouseLeave : undefined
-                                    }
+                                    onMouseLeave={handleMouseLeave}
                                 />
                             );
                         })}
@@ -218,14 +223,41 @@ export const HeatmapGridNew = ({
                     className="fixed z-50 pointer-events-none bg-gray-900 text-white text-xs rounded-md px-3 py-2 shadow-xl leading-relaxed"
                     style={{ left: tooltip.x, top: tooltip.y }}
                 >
-                    <div className="font-semibold">{tooltip.rowSystem}</div>
-                    <div className="text-gray-300">↔ {tooltip.colSystem}</div>
-                    <div className="mt-1 font-mono text-yellow-300">
-                        Similarity score: {Math.round(tooltip.score)}
-                    </div>
-                    <div className="font-mono text-blue-300">
-                        Percentile: {Math.round(tooltip.percentile)}
-                    </div>
+                    <div className="font-semibold">{formatDisplayName(tooltip.rowSystem)}</div>
+                    <div className="text-gray-300">↔ {formatDisplayName(tooltip.colSystem)}</div>
+                    {tooltip.status === "self" && (
+                        <div className="mt-1 text-gray-400 italic">
+                            Comparing a system with itself — score of 100 is excluded by default
+                        </div>
+                    )}
+                    {tooltip.status === "no-data" && (
+                        <div className="mt-1 text-gray-400 italic">
+                            {dbsMode
+                                ? "No similarity data available"
+                                : "Score \u2264 50 \u2014 Filtered Out"}
+                        </div>
+                    )}
+                    {tooltip.status === "filtered-out" && (
+                        <>
+                            <div className="mt-1 font-mono text-yellow-300">
+                                Similarity score: {Math.round(tooltip.score!)}
+                            </div>
+                            <div className="font-mono text-blue-300">
+                                Percentile: {Math.round(tooltip.percentile!)}
+                            </div>
+                            <div className="mt-1 text-gray-400 italic">Filtered out by display range</div>
+                        </>
+                    )}
+                    {!tooltip.status && (
+                        <>
+                            <div className="mt-1 font-mono text-yellow-300">
+                                Similarity score: {Math.round(tooltip.score!)}
+                            </div>
+                            <div className="font-mono text-blue-300">
+                                Percentile: {Math.round(tooltip.percentile!)}
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
         </div>

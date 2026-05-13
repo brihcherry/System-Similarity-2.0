@@ -358,6 +358,7 @@ export const SystemSimilarityPageNew = () => {
                             displayMode={displayMode}
                             minDisplayScore={effectiveMinDisplayScore}
                             maxDisplayScore={effectiveMaxDisplayScore}
+                            dbsMode={dbsOnly}
                         />
                     )}
                 </section>
