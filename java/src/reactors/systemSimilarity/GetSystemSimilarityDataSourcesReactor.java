@@ -54,7 +54,6 @@ import reactors.utils.SimilarityFunctions;
  *     "Activities_Supported": { ... },
  *     "Data_and_Business_Logic_Supported": { ... },
  *     "Deployment_(Theater/Garrison)": { ... },
- *     "Transactional_(Yes/No)": { ... },
  *     "User_Types": { ... },
  *     "User_Interface_Types_(PC/Mobile/etc.)": { ... }
  *   },
@@ -93,17 +92,9 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
   private static final String BUCKET_BP = "Business_Processes_Supported";
   private static final String BUCKET_ACT = "Activities_Supported";
   private static final String BUCKET_THEATER = "Environment";
-  private static final String BUCKET_TRANSACTIONAL = "Transactional_(Yes/No)";
   private static final String BUCKET_USERS = "User_Types";
   private static final String BUCKET_DATA_OBJ = "Data_Subject_Area";
   private static final String BUCKET_INTERFACE = "Interfaces";
-
-  /** Default SystemUser bindings appended when no system filter is provided (legacy behavior). */
-  private static final String DEFAULT_SYSTEM_USER_BINDINGS =
-      "BINDINGS ?SystemUser {(<http://health.mil/ontologies/Concept/SystemOwner/Central>)"
-      + "(<http://health.mil/ontologies/Concept/SystemUser/Army>)"
-      + "(<http://health.mil/ontologies/Concept/SystemUser/Navy>)"
-      + "(<http://health.mil/ontologies/Concept/SystemUser/Air_Force>)}";
 
   private String engineId;
   private List<String> systemList;
@@ -112,7 +103,8 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
   private List<String> allSystems;
   /**
    * Non-null when {@code systemList} contains plain labels rather than absolute URIs.
-   * In that case {@code bindingsClause} falls back to the default SystemUser bindings and
+   * In that case {@code bindingsClause} is left empty so all systems are returned by
+   * the query, and
    * {@code fetchAllSystems} post-filters the full result down to just these labels.
    */
   private List<String> labelsToFilter;
@@ -156,7 +148,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
       Map<String, Map<String, Double>> dataObjectRaw = executeDataObjectQueries();
       Map<String, Map<String, Double>> interfaceRaw = executeSystemInterfaceQueries();
       Map<String, Map<String, Double>> theaterRaw = executeTheaterQuery();
-      Map<String, Map<String, Double>> transactionalRaw = executeTransactionalQuery();
       Map<String, Map<String, Double>> businessProcessesRaw = executeBusinessProcessesQuery();
       Map<String, Map<String, Double>> activitiesRaw = executeActivitiesQuery();
       Map<String, Map<String, Double>> usersRaw = executeUsersQuery();
@@ -165,7 +156,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
       processAndStoreBucket(BUCKET_DATA_OBJ, dataObjectRaw);
       processAndStoreBucket(BUCKET_INTERFACE, interfaceRaw);
       processAndStoreBucket(BUCKET_THEATER, theaterRaw);
-      processAndStoreBucket(BUCKET_TRANSACTIONAL, transactionalRaw);
       processAndStoreBucket(BUCKET_BP, businessProcessesRaw);
       processAndStoreBucket(BUCKET_ACT, activitiesRaw);
       processAndStoreBucket(BUCKET_USERS, usersRaw);
@@ -183,7 +173,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
       // Keep raw contract keys for downstream compatibility.
       // result.put("dataBLUDataSet", dataBluRaw);
       // result.put("theaterData", theaterRaw);
-      // result.put("transactionalData", transactionalRaw);
       // result.put("businessProcessesData", businessProcessesRaw);
       // result.put("activitiesData", activitiesRaw);
       // result.put("userTypesData", usersRaw);
@@ -254,13 +243,14 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
 
   /**
    * Build the SPARQL BINDINGS clause to be appended to each query.
-   * Uses systemList if provided; otherwise uses default SystemUser bindings.
+   * Uses systemList if provided as absolute URIs; uses systemQuery if provided;
+   * otherwise leaves the clause empty so all systems are returned.
    *
    * <p>If {@code systemList} contains plain labels (not absolute URIs), the values cannot
-   * be placed directly into a SPARQL BINDINGS clause as IRIs.  In that case the method
-   * falls back to the default SystemUser bindings so that all systems are returned by
-   * the query, and stores the labels in {@code labelsToFilter} so that
-   * {@link #fetchAllSystems()} can restrict the comparison list after the label map is built.
+   * be placed directly into a SPARQL BINDINGS clause as IRIs.  In that case the clause is
+   * left empty so all systems are returned by the query, and stores the labels in
+   * {@code labelsToFilter} so that {@link #fetchAllSystems()} can restrict the comparison
+   * list after the label map is built.
    */
   private void buildBindingsClause() {
     if (systemList != null && !systemList.isEmpty()) {
@@ -284,16 +274,16 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
         bindingsClause = sb.toString();
       } else {
         // Labels received (e.g. "JOMIS", "DODTR") — cannot be used as SPARQL IRIs.
-        // Fall back to default SystemUser bindings and post-filter by label in fetchAllSystems.
+        // Leave clause empty so all systems are returned, then post-filter by label in fetchAllSystems.
         labelsToFilter = new ArrayList<>(systemList);
-        bindingsClause = DEFAULT_SYSTEM_USER_BINDINGS;
+        bindingsClause = "";
       }
     } else if (systemQuery != null && !systemQuery.isEmpty()) {
       // Use systemQuery as-is (caller has provided the full BINDINGS/VALUES clause)
       bindingsClause = systemQuery;
     } else {
-      // Use default SystemUser bindings
-      bindingsClause = DEFAULT_SYSTEM_USER_BINDINGS;
+      // No filter — return all systems
+      bindingsClause = "";
     }
   }
 
@@ -561,28 +551,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
   }
 
   /**
-   * Execute Transactional (Yes/No) query and convert results.
-   * Returns: Map<System, Set<TransactionalValue>>
-   */
-  private Map<String, Map<String, Double>> executeTransactionalQuery() {
-    String query =
-        "SELECT DISTINCT ?System ?Trans WHERE {"
-        + "{?System <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> "
-        + "<http://semoss.org/ontologies/Concept/System>}"
-        + "{?System <http://semoss.org/ontologies/Relation/Contains/Transactional> ?Trans}"
-        + "{?System ?UsedBy ?SystemUser}"
-        + "}";
-    query = appendBindings(query);
-
-    return similarityFunctions.stringCompareBinaryResultGetter(
-      engineId,
-      query,
-      "Yes",
-      "No",
-      "Both");
-  }
-
-  /**
    * Execute Users/Personnel query and convert results.
    * Returns: Map<System, Set<PersonnelURI>>
    */
@@ -616,6 +584,9 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
    * @return query with bindings clause appended
    */
   private String appendBindings(String query) {
+    if (bindingsClause == null || bindingsClause.isEmpty()) {
+      return query != null ? query : "";
+    }
     if (query == null) {
       return bindingsClause;
     }

@@ -13,7 +13,6 @@ export const DEFAULT_REFRESH_VARIABLES = [
     "Data_Subject_Area",
     "Interfaces",
     "Activities_Supported",
-    "Transactional_(Yes/No)",
 ] as const;
 
 interface RefreshHeatmapWidgetProps {
