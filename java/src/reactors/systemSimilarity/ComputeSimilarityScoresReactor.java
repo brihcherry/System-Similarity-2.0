@@ -29,7 +29,8 @@ import reactors.AbstractProjectReactor;
  *   <li>If {@code specifiedWeights} contains a minimum for this variable and
  *       the score is below it → skip the pair entirely.</li>
  *   <li>Accumulate in legacy order: {@code score += (varScore / totalVars)}.</li>
- *   <li>After all vars: if DBS mode is off and {@code score <= 50} → skip pair;
+ *   <li>After all vars: if DBS mode is off and the pair score is below
+ *       {@code minimumScore} (default 0 → no threshold) → skip pair;
  *       if DBS mode is on, keep pair regardless of this threshold.</li>
  * </ol>
  *
@@ -57,8 +58,8 @@ import reactors.AbstractProjectReactor;
 public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
   public ComputeSimilarityScoresReactor() {
-    this.keysToGet = new String[] { "selectedVars", "specifiedWeights" };
-    this.keyRequired = new int[] { 0, 0 };
+    this.keysToGet = new String[] { "selectedVars", "specifiedWeights", "minimumScore" };
+    this.keyRequired = new int[] { 0, 0, 0 };
   }
 
   @Override
@@ -68,6 +69,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     // ── 1. Parse optional parameters ─────────────────────────────────────────
     List<String> selectedVars = getSelectedVars();
     Map<String, Double> minimumWeights = parseWeights(getMap("specifiedWeights"));
+    double minimumScore = parseMinimumScore();
 
     // ── 2. Load paramDataHash from var-store ─────────────────────────────────
     NounMetadata pdhNoun = this.insight.getVarStore()
@@ -191,7 +193,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
       totalPairsEvaluated++;
 
       // Keep legacy threshold behavior for non-DBS runs only.
-      if (!dbsMode && score <= 50.0) {
+      if (!dbsMode && minimumScore > 0 && score < minimumScore) {
         continue;
       }
 
@@ -262,6 +264,27 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
       return grs.getAllStrValues();
     }
     return null;
+  }
+
+  private double parseMinimumScore() {
+    prerna.sablecc2.om.GenRowStruct grs = this.store.getGenRowStruct("minimumScore");
+    if (grs != null && !grs.isEmpty()) {
+      // Try as string value first (most common from Pixel)
+      List<String> strVals = grs.getAllStrValues();
+      if (strVals != null && !strVals.isEmpty()) {
+        try {
+          return Double.parseDouble(strVals.get(0).trim());
+        } catch (NumberFormatException e) {
+          // fall through
+        }
+      }
+      // Try as numeric noun directly
+      prerna.sablecc2.om.nounmeta.NounMetadata noun = grs.getNoun(0);
+      if (noun != null && noun.getValue() instanceof Number) {
+        return ((Number) noun.getValue()).doubleValue();
+      }
+    }
+    return 0.0;
   }
 
   private static Map<String, Double> parseWeights(Map<String, Object> raw) {

@@ -28,8 +28,13 @@ export const SystemSimilarityPageNew = () => {
     // when the toggle hasn't changed since the last full load.
     const loadedDbsOnlyRef = useRef<boolean | null>(null);
     const [displayMode, setDisplayMode] = useState<"score" | "percentile">("score");
-    const [minDisplayScore, setMinDisplayScore] = useState(0);
+    const [minDisplayScore, setMinDisplayScore] = useState(50);
     const [maxDisplayScore, setMaxDisplayScore] = useState(100);
+    // Snapshot of min/max that is actually applied to the heatmap display and
+    // sent to the reactor.  Only updated when the user clicks Refresh so that
+    // changing the slider never causes a partial visual update.
+    const [appliedMinDisplayScore, setAppliedMinDisplayScore] = useState(50);
+    const [appliedMaxDisplayScore, setAppliedMaxDisplayScore] = useState(100);
     const [refreshedData, setRefreshedData] = useState<HeatmapMatrix | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -42,7 +47,7 @@ export const SystemSimilarityPageNew = () => {
         setRefreshError(null);
         setRefreshedData(null);
 
-        fetchInitialHeatmapFromReactor(runPixel, { dbsOnly })
+        fetchInitialHeatmapFromReactor(runPixel, { dbsOnly, minimumScore: minDisplayScore })
             .then((output) => {
                 if (!cancelled) {
                     loadedDbsOnlyRef.current = dbsOnly;
@@ -76,8 +81,8 @@ export const SystemSimilarityPageNew = () => {
     }, [runPixel, dbsOnly]);
 
     const displayData = refreshedData ?? data;
-    const effectiveMinDisplayScore = Math.min(minDisplayScore, maxDisplayScore);
-    const effectiveMaxDisplayScore = Math.max(minDisplayScore, maxDisplayScore);
+    const effectiveMinDisplayScore = Math.min(appliedMinDisplayScore, appliedMaxDisplayScore);
+    const effectiveMaxDisplayScore = Math.max(appliedMinDisplayScore, appliedMaxDisplayScore);
 
     const handleRefreshHeatmap = async (payload: RefreshHeatmapRequest) => {
         if (payload.selectedVars.length === 0) {
@@ -88,6 +93,11 @@ export const SystemSimilarityPageNew = () => {
         setIsRefreshing(true);
         setRefreshError(null);
 
+        // Snapshot the slider values so the display updates atomically with the
+        // new data rather than partially updating before the reactor responds.
+        const pendingMin = minDisplayScore;
+        const pendingMax = maxDisplayScore;
+
         try {
             // Only re-run GetSystemSimilarityDataSources if the toggle changed
             // since the last full load; otherwise the var-store already has the
@@ -96,10 +106,13 @@ export const SystemSimilarityPageNew = () => {
             const output = await refreshHeatmapOutput(payload, runPixel, {
                 dbsOnly,
                 skipDataSourcesReload: !needsReload,
+                minimumScore: pendingMin,
             });
             const heatmap = dbsOnly
                 ? transformHeatmap(output, output.allSystems, output.systemLabelMap)
                 : transformHeatmap(output);
+            setAppliedMinDisplayScore(pendingMin);
+            setAppliedMaxDisplayScore(pendingMax);
             setRefreshedData(heatmap);
         } catch (err: unknown) {
             setRefreshError(

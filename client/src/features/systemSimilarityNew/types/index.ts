@@ -51,6 +51,10 @@ export interface HeatmapRequestOptions {
      * whatever data is already cached in the var-store. Set this on Refresh
      * calls when the dbsOnly toggle hasn't changed since the last full load. */
     skipDataSourcesReload?: boolean;
+    /** Pairs with an overall score below this value are excluded from the
+     * ComputeSimilarityScores response.  Defaults to 0 (no filtering) when
+     * omitted on the reactor side; the UI defaults to 50. */
+    minimumScore?: number;
 }
 
 // ── Transformed / app-level shapes ───────────────────────────────────────────

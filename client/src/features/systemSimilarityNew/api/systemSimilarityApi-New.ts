@@ -147,7 +147,10 @@ export async function fetchInitialHeatmapFromReactor(
     options?: HeatmapRequestOptions,
 ): Promise<OutputResponse> {
     await ensureDataSourcesLoaded(runPixel, options);
-    const result = await runPixel<ComputeScoresResponse>("ComputeSimilarityScores();");
+    const minimumScore = options?.minimumScore ?? 50;
+    const result = await runPixel<ComputeScoresResponse>(
+        `ComputeSimilarityScores(minimumScore=[${minimumScore}]);`,
+    );
     return toOutputResponse(result);
 }
 
@@ -171,11 +174,12 @@ export async function refreshHeatmapOutput(
 
     const varsJson = JSON.stringify(payload.selectedVars);
     const weightsJson = JSON.stringify(payload.specifiedWeights ?? {});
+    const minimumScore = options?.minimumScore ?? 50;
 
     const hasWeights = Object.keys(payload.specifiedWeights ?? {}).length > 0;
     const pixel = hasWeights
-        ? `ComputeSimilarityScores(selectedVars=${varsJson}, specifiedWeights=${weightsJson});`
-        : `ComputeSimilarityScores(selectedVars=${varsJson});`;
+        ? `ComputeSimilarityScores(selectedVars=${varsJson}, specifiedWeights=${weightsJson}, minimumScore=[${minimumScore}]);`
+        : `ComputeSimilarityScores(selectedVars=${varsJson}, minimumScore=[${minimumScore}]);`;
 
     const result = await runPixel<ComputeScoresResponse>(pixel);
     return toOutputResponse(result);

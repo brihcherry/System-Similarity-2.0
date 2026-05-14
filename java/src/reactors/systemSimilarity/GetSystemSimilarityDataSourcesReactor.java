@@ -160,15 +160,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
       processAndStoreBucket(BUCKET_ACT, activitiesRaw);
       processAndStoreBucket(BUCKET_USERS, usersRaw);
 
-      // ── 5. Prune paramDataHash (legacy calculateHash + flattenData behavior) ────
-      // Remove pairs from ALL variables if they exist in every variable and
-      // their simple average score across all variables is ≤ 50.
-      // Skip pruning in DBS label mode so all requested DBS systems retain
-      // their computed pairs for downstream charting.
-      if (labelsToFilter == null || labelsToFilter.isEmpty()) {
-        pruneParamDataHash();
-      }
-
       Map<String, Object> result = new HashMap<>();
       // Keep raw contract keys for downstream compatibility.
       // result.put("dataBLUDataSet", dataBluRaw);
@@ -364,71 +355,6 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
 
     if (chartData != null && !chartData.isEmpty()) {
       paramDataHash.put(bucketName, chartData);
-    }
-  }
-
-  /**
-   * Prunes paramDataHash to match legacy calculateHash + flattenData behavior.
-   *
-   * <p>Legacy flow:
-   * <ol>
-   *   <li>{@code calculateHash}: iterates pair keys starting from the smallest
-   *       variable. For each pair key, if it exists in ALL variables, computes
-   *       the simple average score ({@code sum(Score_i) / totalVars}).</li>
-   *   <li>{@code flattenData}: for each pair in the calculateHash output, if
-   *       average score ≤ 50, calls {@code clearParamDataHash(key)} which
-   *       removes that pair key from EVERY variable.</li>
-   * </ol>
-   *
-   * <p>Only pairs that exist in ALL variables AND have avg ≤ 50 are removed.
-   * Pairs that exist in only some variables are left untouched.
-   */
-  private void pruneParamDataHash() {
-    if (paramDataHash.isEmpty()) {
-      return;
-    }
-
-    int totalVars = paramDataHash.size();
-    if (totalVars == 0) {
-      return;
-    }
-
-    // Find intersection of pair keys across ALL variables
-    Set<String> intersection = null;
-    for (Map<String, Map<String, Object>> varPairs : paramDataHash.values()) {
-      if (intersection == null) {
-        intersection = new HashSet<>(varPairs.keySet());
-      } else {
-        intersection.retainAll(varPairs.keySet());
-      }
-    }
-
-    if (intersection == null || intersection.isEmpty()) {
-      return;
-    }
-
-    // For each pair in the intersection, compute average score across all vars.
-    // If avg <= 50, mark for removal from ALL variables.
-    List<String> toRemove = new ArrayList<>();
-    for (String pairKey : intersection) {
-      double sum = 0.0;
-      for (Map<String, Map<String, Object>> varPairs : paramDataHash.values()) {
-        Map<String, Object> cell = varPairs.get(pairKey);
-        Object scoreObj = cell != null ? cell.get("Score") : null;
-        double varScore = scoreObj instanceof Number ? ((Number) scoreObj).doubleValue() : 0.0;
-        sum += varScore;
-      }
-      double score = sum / totalVars;
-      if (score <= 50.0) {
-        toRemove.add(pairKey);
-      }
-    }
-
-    // Remove from ALL variables (matches legacy clearParamDataHash behavior)
-    for (String pairKey : toRemove) {
-      for (Map<String, Map<String, Object>> varPairs : paramDataHash.values()) {
-        varPairs.remove(pairKey);
-      }
     }
   }
 
