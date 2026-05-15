@@ -39,6 +39,7 @@ export const HeatmapGridNew = ({
             score?: number,
             percentile?: number,
             status?: "no-data" | "filtered-out" | "self",
+            categoryScores?: Record<string, number>,
         ) => {
             setTooltip({
                 x: e.clientX + 12,
@@ -47,6 +48,7 @@ export const HeatmapGridNew = ({
                 colSystem,
                 score,
                 percentile,
+                categoryScores,
                 status,
             });
         },
@@ -207,6 +209,7 @@ export const HeatmapGridNew = ({
                                             cell?.score,
                                             cell?.percentile,
                                             cellStatus,
+                                            cell?.categoryScores,
                                         )
                                     }
                                     onMouseLeave={handleMouseLeave}
@@ -245,6 +248,17 @@ export const HeatmapGridNew = ({
                             <div className="font-mono text-blue-300">
                                 Percentile: {Math.round(tooltip.percentile!)}
                             </div>
+                            {tooltip.categoryScores && Object.keys(tooltip.categoryScores).length > 0 && (
+                                <div className="mt-2 border-t border-gray-600 pt-1 space-y-0.5">
+                                    <div className="text-gray-400 text-[10px] uppercase tracking-wide mb-1">Individual Category Scores</div>
+                                    {Object.entries(tooltip.categoryScores).map(([cat, catScore]) => (
+                                        <div key={cat} className="flex justify-between gap-4 text-gray-300">
+                                            <span>{formatDisplayName(cat)}</span>
+                                            <span className="font-mono text-gray-200">{Math.round(catScore)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                             <div className="mt-1 text-gray-400 italic">Filtered out by display range</div>
                         </>
                     )}
@@ -256,6 +270,17 @@ export const HeatmapGridNew = ({
                             <div className="font-mono text-blue-300">
                                 Percentile: {Math.round(tooltip.percentile!)}
                             </div>
+                            {tooltip.categoryScores && Object.keys(tooltip.categoryScores).length > 0 && (
+                                <div className="mt-2 border-t border-gray-600 pt-1 space-y-0.5">
+                                    <div className="text-gray-400 text-[10px] uppercase tracking-wide mb-1">Individual Category Scores</div>
+                                    {Object.entries(tooltip.categoryScores).map(([cat, catScore]) => (
+                                        <div key={cat} className="flex justify-between gap-4 text-gray-300">
+                                            <span>{formatDisplayName(cat)}</span>
+                                            <span className="font-mono text-gray-200">{Math.round(catScore)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </>
                     )}
                 </div>

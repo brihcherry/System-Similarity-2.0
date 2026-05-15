@@ -157,6 +157,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     for (String pairKey : masterKeys) {
       double score = 0.0;
       boolean storeCell = true;
+      Map<String, Double> varScores = new LinkedHashMap<>();
 
       for (String var : orderedVars) {
         Map<String, Object> cellData = paramDataHash.get(var).get(pairKey);
@@ -183,6 +184,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
           }
         }
 
+        varScores.put(var, varScore);
         score += varScore / totalVars;
       }
 
@@ -201,7 +203,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
       // Resolve pair key to system names via keyHash
       String[] parts = lookupPairNames(pairKey, keyHash);
-      rows.add(new Object[] { parts[0], parts[1], score });
+      rows.add(new Object[] { parts[0], parts[1], score, varScores });
     }
 
     // ── 7. Retrieve allSystems from var-store ───────────────────────────────

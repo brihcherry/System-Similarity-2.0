@@ -58,10 +58,10 @@ export function transformHeatmap(
 
     // Keep directionality: System1 maps to x-axis and System2 maps to y-axis.
     // Populate scores from the data (data contains labels, not URIs).
-    for (const [s1, s2, score, percentile] of outputWithPercentiles.data) {
+    for (const [s1, s2, score, percentile, categoryScores] of outputWithPercentiles.data) {
         if (score < minScore) minScore = score;
         if (score > maxScore) maxScore = score;
-        const cell = { score, percentile };
+        const cell = { score, percentile, ...(categoryScores ? { categoryScores } : {}) };
         // s1 and s2 are labels from the reactor output, so they should match ySystem/xSystem keys
         if (matrix[s2]) {
             matrix[s2][s1] = cell;

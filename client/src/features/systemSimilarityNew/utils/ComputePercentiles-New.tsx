@@ -1,7 +1,7 @@
 import type { OutputResponse } from "../types";
 
-/** Each row extended with percentile: [system1Name, system2Name, score, percentile] */
-export type SimilarityPercentileRow = [string, string, number, number];
+/** Each row extended with percentile: [system1Name, system2Name, score, percentile, perCategoryScores?] */
+export type SimilarityPercentileRow = [string, string, number, number, (Record<string, number> | undefined)?];
 
 /**
  * Output shape that mirrors OutputResponse but adds percentile to each row.
@@ -23,9 +23,9 @@ export function buildOutputWithPercentiles(
 ): OutputWithPercentiles {
     const percentilesByScore = computePercentilesByScore(output.data.map(([, , score]) => score));
 
-    const data: SimilarityPercentileRow[] = output.data.map(([system1, system2, score]) => {
+    const data: SimilarityPercentileRow[] = output.data.map(([system1, system2, score, categoryScores]) => {
         const percentile = percentilesByScore.get(score) ?? 0;
-        return [system1, system2, score, percentile];
+        return [system1, system2, score, percentile, categoryScores];
     });
 
     return {

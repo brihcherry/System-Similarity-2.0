@@ -19,8 +19,8 @@ export interface PkqlInsight {
     newInsights: unknown[];
 }
 
-/** One heatmap similarity tuple: [system1Name, system2Name, scoreValue] */
-export type SimilarityRow = [string, string, number];
+/** One heatmap similarity tuple: [system1Name, system2Name, scoreValue, perCategoryScores?] */
+export type SimilarityRow = [string, string, number, (Record<string, number> | undefined)?];
 
 /** Response from POST /api/engine/e-{engine}/output */
 export interface OutputResponse {
@@ -63,6 +63,7 @@ export interface HeatmapRequestOptions {
 export interface HeatmapCell {
     score: number;
     percentile: number;
+    categoryScores?: Record<string, number>;
 }
 
 /** Processed heatmap data ready for rendering */
@@ -87,6 +88,7 @@ export interface TooltipState {
     colSystem: string;
     score?: number;
     percentile?: number;
+    categoryScores?: Record<string, number>;
     /** Undefined means a normal data cell. */
     status?: "no-data" | "filtered-out" | "self";
 }
