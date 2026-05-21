@@ -68,12 +68,21 @@ export function transformHeatmap(
         }
     }
 
+    // Populate partial-data cells (DBS mode: pairs missing one or more categories).
+    // These have no overall score/percentile but carry whatever category scores exist.
+    for (const [s1, s2, partialCategoryScores] of output.partialPairs ?? []) {
+        if (matrix[s2] && !matrix[s2][s1]) {
+            matrix[s2][s1] = { isPartial: true, categoryScores: partialCategoryScores };
+        }
+    }
+
     return {
         xSystems,
         ySystems,
         matrix,
         minScore: isFinite(minScore) ? minScore : 0,
         maxScore: isFinite(maxScore) ? maxScore : 100,
+        variablesUsed: output.variablesUsed ?? [],
     };
 }
 

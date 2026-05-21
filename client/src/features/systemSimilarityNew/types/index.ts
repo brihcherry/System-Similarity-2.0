@@ -22,6 +22,9 @@ export interface PkqlInsight {
 /** One heatmap similarity tuple: [system1Name, system2Name, scoreValue, perCategoryScores?] */
 export type SimilarityRow = [string, string, number, (Record<string, number> | undefined)?];
 
+/** A pair with partial category data (missing one or more categories): [sys1, sys2, availableCategoryScores] */
+export type PartialSimilarityRow = [string, string, Record<string, number>];
+
 /** Response from POST /api/engine/e-{engine}/output */
 export interface OutputResponse {
     layout: string;
@@ -36,6 +39,10 @@ export interface OutputResponse {
     allSystems?: string[];
     /** URI to label mapping for all systems. */
     systemLabelMap?: Record<string, string>;
+    /** Variables that were selected for this computation run. */
+    variablesUsed?: string[];
+    /** Pairs that have data for some but not all selected categories (DBS mode only). */
+    partialPairs?: PartialSimilarityRow[];
 }
 
 /** Request payload for refreshing the heatmap with selected variables and weights. */
@@ -61,9 +68,11 @@ export interface HeatmapRequestOptions {
 
 /** One heatmap cell's computed metrics */
 export interface HeatmapCell {
-    score: number;
-    percentile: number;
+    score?: number;
+    percentile?: number;
     categoryScores?: Record<string, number>;
+    /** True for cells with partial category data (some categories missing). */
+    isPartial?: boolean;
 }
 
 /** Processed heatmap data ready for rendering */
@@ -78,6 +87,8 @@ export interface HeatmapMatrix {
     minScore: number;
     /** Highest score present in the dataset */
     maxScore: number;
+    /** Variables selected for this computation run (used for partial-data tooltips). */
+    variablesUsed?: string[];
 }
 
 /** Data passed to a hovered tooltip */
@@ -90,7 +101,7 @@ export interface TooltipState {
     percentile?: number;
     categoryScores?: Record<string, number>;
     /** Undefined means a normal data cell. */
-    status?: "no-data" | "filtered-out" | "self";
+    status?: "no-data" | "partial-data" | "filtered-out" | "self";
 }
 
 // ── Debug / introspection shapes ─────────────────────────────────────────────

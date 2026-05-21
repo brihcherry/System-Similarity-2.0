@@ -1,6 +1,7 @@
 import type {
     HeatmapRequestOptions,
     OutputResponse,
+    PartialSimilarityRow,
     RefreshHeatmapRequest,
     SimilarityRow,
 } from "../types";
@@ -105,6 +106,8 @@ interface ComputeScoresResponse {
     allSystems: string[];
     /** URI to label mapping for all systems. */
     systemLabelMap: Record<string, string>;
+    /** Pairs with data for some but not all selected categories (DBS mode only). */
+    partialPairs?: PartialSimilarityRow[];
 }
 
 /** Wraps a ComputeScoresResponse into the OutputResponse shape used downstream. */
@@ -116,6 +119,8 @@ function toOutputResponse(raw: ComputeScoresResponse): OutputResponse {
         data: raw.data,
         allSystems: raw.allSystems,
         systemLabelMap: raw.systemLabelMap,
+        variablesUsed: raw.variablesUsed,
+        partialPairs: raw.partialPairs,
     };
 }
 
