@@ -3,6 +3,7 @@ package reactors.systemSimilarity;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -151,6 +152,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     // If a variable's score for a pair is below its minimum → exclude pair.
     // After accumulation: include pair only if score > 50.
     List<Object[]> rows = new ArrayList<>();
+    Set<String> completedKeys = new HashSet<>();
     int totalPairsEvaluated = 0;
     int pairsAboveThreshold = 0;
 
@@ -204,6 +206,41 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
       // Resolve pair key to system names via keyHash
       String[] parts = lookupPairNames(pairKey, keyHash);
       rows.add(new Object[] { parts[0], parts[1], score, varScores });
+      completedKeys.add(pairKey);
+    }
+
+    // ── 6b. In DBS mode, collect pairs with partial category data ─────────────
+    //
+    // These are pairs that exist in at least one category bucket but were
+    // excluded from the main pass (missing data in one or more categories).
+    // They remain blank cells on the map but carry partial categoryScores
+    // for display in the hover tooltip.
+    List<Object[]> partialRows = new ArrayList<>();
+    if (dbsMode) {
+      Set<String> allPairKeys = new HashSet<>();
+      for (String var : orderedVars) {
+        allPairKeys.addAll(paramDataHash.get(var).keySet());
+      }
+
+      for (String pairKey : allPairKeys) {
+        if (completedKeys.contains(pairKey)) continue;
+
+        Map<String, Double> partialVarScores = new LinkedHashMap<>();
+        for (String var : orderedVars) {
+          Map<String, Object> cellData = paramDataHash.get(var).get(pairKey);
+          if (cellData != null) {
+            Object scoreObj = cellData.get("Score");
+            if (scoreObj instanceof Number) {
+              partialVarScores.put(var, ((Number) scoreObj).doubleValue());
+            }
+          }
+        }
+
+        if (partialVarScores.isEmpty()) continue;
+
+        String[] parts = lookupPairNames(pairKey, keyHash);
+        partialRows.add(new Object[] { parts[0], parts[1], partialVarScores });
+      }
     }
 
     // ── 7. Retrieve allSystems from var-store ───────────────────────────────
@@ -226,6 +263,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("headers", new String[] { "System1", "System2", "Score" });
     result.put("data", rows);
+    result.put("partialPairs", partialRows);
     result.put("variablesUsed", selectedVars);
     result.put("minimumWeightsUsed", minimumWeights);
     result.put("totalPairsEvaluated", totalPairsEvaluated);

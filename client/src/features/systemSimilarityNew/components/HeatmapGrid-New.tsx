@@ -38,7 +38,7 @@ export const HeatmapGridNew = ({
             colSystem: string,
             score?: number,
             percentile?: number,
-            status?: "no-data" | "filtered-out" | "self",
+            status?: "no-data" | "partial-data" | "filtered-out" | "self",
             categoryScores?: Record<string, number>,
         ) => {
             setTooltip({
@@ -174,9 +174,10 @@ export const HeatmapGridNew = ({
                                     ? rawMetricValue
                                     : undefined;
 
-                            const cellStatus: "self" | "no-data" | "filtered-out" | undefined =
+                            const cellStatus: "self" | "no-data" | "partial-data" | "filtered-out" | undefined =
                                 isSelf ? "self"
                                 : !cell ? "no-data"
+                                : cell.isPartial ? "partial-data"
                                 : visibleMetricValue === undefined ? "filtered-out"
                                 : undefined;
 
@@ -239,6 +240,27 @@ export const HeatmapGridNew = ({
                                 ? "No similarity data available"
                                 : "Score \u2264 50 \u2014 Filtered Out"}
                         </div>
+                    )}
+                    {tooltip.status === "partial-data" && (
+                        <>
+                            <div className="mt-1 text-gray-400 italic">Missing one or more categories</div>
+                            {data.variablesUsed && data.variablesUsed.length > 0 && (
+                                <div className="mt-2 border-t border-gray-600 pt-1 space-y-0.5">
+                                    <div className="text-gray-400 text-[10px] uppercase tracking-wide mb-1">Individual Category Scores</div>
+                                    {data.variablesUsed.map((varName) => {
+                                        const catScore = tooltip.categoryScores?.[varName];
+                                        return (
+                                            <div key={varName} className="flex justify-between gap-4 text-gray-300">
+                                                <span>{formatDisplayName(varName)}</span>
+                                                <span className={`font-mono ${catScore !== undefined ? "text-gray-200" : "text-gray-500"}`}>
+                                                    {catScore !== undefined ? Math.round(catScore) : "N/A"}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </>
                     )}
                     {tooltip.status === "filtered-out" && (
                         <>
