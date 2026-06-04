@@ -1,3 +1,10 @@
+// ── Capability group shapes ───────────────────────────────────────────────────
+
+/** Map of CapabilityGroup label → sorted list of system labels belonging to that group.
+ *  Returned by the GetSystemsByCapabilityGroup reactor and used as a client-side
+ *  view filter on the heatmap — no re-fetching of similarity data is performed. */
+export type CapabilityGroupMap = Record<string, string[]>;
+
 // ── Raw API shapes ────────────────────────────────────────────────────────────
 
 /** Response from GET /api/engine/e-{engine}/insight?insight={id} */

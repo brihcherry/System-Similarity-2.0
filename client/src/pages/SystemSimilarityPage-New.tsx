@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppContext } from "@/contexts";
 import {
+    fetchCapabilityGroups,
     fetchInitialHeatmapFromReactor,
+    filterHeatmapBySystems,
     HeatmapGridNew,
     RefreshHeatmapWidgetNew,
     refreshHeatmapOutput,
     transformHeatmap,
+    type CapabilityGroupMap,
     type ColorScheme,
     type HeatmapMatrix,
     type RefreshHeatmapRequest,
@@ -38,6 +41,13 @@ export const SystemSimilarityPageNew = () => {
     const [refreshedData, setRefreshedData] = useState<HeatmapMatrix | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [refreshError, setRefreshError] = useState<string | null>(null);
+    const [capabilityGroupMap, setCapabilityGroupMap] = useState<CapabilityGroupMap>({});
+    const [selectedCapabilityGroup, setSelectedCapabilityGroup] = useState("");
+
+    // Load capability groups once on mount — independent of heatmap load.
+    useEffect(() => {
+        fetchCapabilityGroups(runPixel).then(setCapabilityGroupMap);
+    }, [runPixel]);
 
     useEffect(() => {
         let cancelled = false;
@@ -80,7 +90,11 @@ export const SystemSimilarityPageNew = () => {
         };
     }, [runPixel, dbsOnly]);
 
-    const displayData = refreshedData ?? data;
+    const rawDisplayData = refreshedData ?? data;
+    const displayData =
+        rawDisplayData && selectedCapabilityGroup && capabilityGroupMap[selectedCapabilityGroup]
+            ? filterHeatmapBySystems(rawDisplayData, capabilityGroupMap[selectedCapabilityGroup])
+            : rawDisplayData;
     const effectiveMinDisplayScore = Math.min(appliedMinDisplayScore, appliedMaxDisplayScore);
     const effectiveMaxDisplayScore = Math.max(appliedMinDisplayScore, appliedMaxDisplayScore);
 
@@ -155,6 +169,32 @@ export const SystemSimilarityPageNew = () => {
                                 Hide
                             </button>
                         </div>
+
+                        <div className="space-y-2">
+                            <div>
+                                <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                    Capability Group
+                                </h3>
+                                <p className="mt-1 text-xs text-gray-500 leading-relaxed">
+                                    Filter the heatmap to systems within a capability group.
+                                </p>
+                            </div>
+                            <select
+                                value={selectedCapabilityGroup}
+                                onChange={(e) => setSelectedCapabilityGroup(e.target.value)}
+                                className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-xs text-gray-700"
+                            >
+                                <option value="">All Systems</option>
+                                {Object.keys(capabilityGroupMap)
+                                    .sort()
+                                    .map((group) => (
+                                        <option key={group} value={group}>
+                                            {group}
+                                        </option>
+                                    ))}
+                            </select>
+                        </div>
+                        <hr className="my-4" />
 
                         <div className="space-y-2">
                             <div>

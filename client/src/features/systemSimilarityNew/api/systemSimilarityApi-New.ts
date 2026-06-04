@@ -1,4 +1,5 @@
 import type {
+    CapabilityGroupMap,
     HeatmapRequestOptions,
     OutputResponse,
     PartialSimilarityRow,
@@ -188,4 +189,26 @@ export async function refreshHeatmapOutput(
 
     const result = await runPixel<ComputeScoresResponse>(pixel);
     return toOutputResponse(result);
+}
+
+/**
+ * Fetches the capability group → systems mapping from the backend.
+ * Used to populate the capability-group dropdown in the sidebar.
+ * The result is applied as a client-side view filter only — no similarity
+ * data is reloaded when the user changes the selected group.
+ *
+ * Returns an empty object if the reactor call fails (dropdown shows "All Systems" only).
+ */
+export async function fetchCapabilityGroups(
+    runPixel: RunPixelFn,
+): Promise<CapabilityGroupMap> {
+    try {
+        const result = await runPixel<CapabilityGroupMap>(
+            `GetSystemsByCapabilityGroup(database=["${DATABASE_ID}"]);`,
+        );
+        return result ?? {};
+    } catch {
+        console.warn("GetSystemsByCapabilityGroup failed; capability group filter unavailable.");
+        return {};
+    }
 }
