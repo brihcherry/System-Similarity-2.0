@@ -21,17 +21,20 @@ export function transformHeatmap(
     systemLabelMap?: Record<string, string>,
 ): HeatmapMatrix {
     const outputWithPercentiles = buildOutputWithPercentiles(output);
+    const normalizeSystem = (value: string): string =>
+        systemLabelMap ? (systemLabelMap[value] ?? value) : value;
+    const normalizedAllSystems =
+        allSystems && allSystems.length > 0
+            ? allSystems.map((uri) => (systemLabelMap ? (systemLabelMap[uri] ?? uri) : uri))
+            : undefined;
 
     let xSystems: string[];
     let ySystems: string[];
     let minScore = Infinity;
     let maxScore = -Infinity;
 
-    if (allSystems && allSystems.length > 0 && systemLabelMap) {
-        // Convert URIs to their corresponding labels using the systemLabelMap
-        const normalizedSystems = allSystems
-            .map((uri) => systemLabelMap[uri] || uri) // Use label if found, else use URI as-is
-            .sort();
+    if (normalizedAllSystems && normalizedAllSystems.length > 0) {
+        const normalizedSystems = Array.from(new Set(normalizedAllSystems)).sort();
         xSystems = normalizedSystems;
         ySystems = normalizedSystems;
     } else {
@@ -58,7 +61,9 @@ export function transformHeatmap(
 
     // Keep directionality: System1 maps to x-axis and System2 maps to y-axis.
     // Populate scores from the data (data contains labels, not URIs).
-    for (const [s1, s2, score, percentile, categoryScores] of outputWithPercentiles.data) {
+    for (const [s1Raw, s2Raw, score, percentile, categoryScores] of outputWithPercentiles.data) {
+        const s1 = normalizeSystem(s1Raw);
+        const s2 = normalizeSystem(s2Raw);
         if (score < minScore) minScore = score;
         if (score > maxScore) maxScore = score;
         const cell = { score, percentile, ...(categoryScores ? { categoryScores } : {}) };
@@ -70,7 +75,9 @@ export function transformHeatmap(
 
     // Populate partial-data cells (DBS mode: pairs missing one or more categories).
     // These have no overall score/percentile but carry whatever category scores exist.
-    for (const [s1, s2, partialCategoryScores] of output.partialPairs ?? []) {
+    for (const [s1Raw, s2Raw, partialCategoryScores] of output.partialPairs ?? []) {
+        const s1 = normalizeSystem(s1Raw);
+        const s2 = normalizeSystem(s2Raw);
         if (matrix[s2] && !matrix[s2][s1]) {
             matrix[s2][s1] = { isPartial: true, categoryScores: partialCategoryScores };
         }
@@ -83,6 +90,7 @@ export function transformHeatmap(
         minScore: isFinite(minScore) ? minScore : 0,
         maxScore: isFinite(maxScore) ? maxScore : 100,
         variablesUsed: output.variablesUsed ?? [],
+        allSystems: normalizedAllSystems ? Array.from(new Set(normalizedAllSystems)).sort() : undefined,
     };
 }
 

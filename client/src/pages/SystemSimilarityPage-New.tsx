@@ -61,12 +61,11 @@ export const SystemSimilarityPageNew = () => {
             .then((output) => {
                 if (!cancelled) {
                     loadedDbsOnlyRef.current = dbsOnly;
-                    // Only pass allSystems/systemLabelMap for DBS mode so all
-                    // requested systems appear on the axes. Default mode derives
-                    // axes purely from the data (legacy behavior).
-                    const heatmap = dbsOnly
-                        ? transformHeatmap(output, output.allSystems, output.systemLabelMap)
-                        : transformHeatmap(output);
+                    const heatmap = transformHeatmap(
+                        output,
+                        output.allSystems,
+                        output.systemLabelMap,
+                    );
                     setData(heatmap);
                 }
             })
@@ -122,9 +121,11 @@ export const SystemSimilarityPageNew = () => {
                 skipDataSourcesReload: !needsReload,
                 minimumScore: pendingMin,
             });
-            const heatmap = dbsOnly
-                ? transformHeatmap(output, output.allSystems, output.systemLabelMap)
-                : transformHeatmap(output);
+            const heatmap = transformHeatmap(
+                output,
+                output.allSystems,
+                output.systemLabelMap,
+            );
             setAppliedMinDisplayScore(pendingMin);
             setAppliedMaxDisplayScore(pendingMax);
             setRefreshedData(heatmap);

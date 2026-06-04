@@ -96,6 +96,8 @@ export interface HeatmapMatrix {
     maxScore: number;
     /** Variables selected for this computation run (used for partial-data tooltips). */
     variablesUsed?: string[];
+    /** Full labeled system universe available for axis rendering, including no-score systems. */
+    allSystems?: string[];
 }
 
 /** Data passed to a hovered tooltip */
