@@ -3,6 +3,7 @@
 	"scripts": {
 		"build": "vite build",
 		"dev": "vite",
+		"test": "vitest run --config vitest.config.mts",
 		"fix": "pnpm --dir ../ fix"
 	},
 	"dependencies": {
@@ -57,6 +58,7 @@
 		"@types/react-dom": "^18.3.7",
 		"@vitejs/plugin-react": "^5.1.4",
 		"typescript": "^5.9.3",
-		"vite": "^7.3.1"
+		"vite": "^7.3.1",
+		"vitest": "^2.1.8"
 	}
 }
