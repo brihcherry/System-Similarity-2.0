@@ -90,10 +90,36 @@ export const SystemSimilarityPageNew = () => {
     }, [runPixel, dbsOnly]);
 
     const rawDisplayData = refreshedData ?? data;
-    const displayData =
-        rawDisplayData && selectedCapabilityGroup && capabilityGroupMap[selectedCapabilityGroup]
-            ? filterHeatmapBySystems(rawDisplayData, capabilityGroupMap[selectedCapabilityGroup])
-            : rawDisplayData;
+    const displayData = (() => {
+        if (!rawDisplayData) return rawDisplayData;
+
+        // Non-DBS + All Systems keeps legacy compact axes (data-derived only).
+        if (!dbsOnly && !selectedCapabilityGroup) {
+            return transformHeatmap({
+                layout: "SystemSimilarity",
+                pkqlOutput: { insights: [] },
+                headers: ["System1", "System2", "Score"],
+                data: Object.entries(rawDisplayData.matrix).flatMap(([rowSystem, rowData]) =>
+                    Object.entries(rowData)
+                        .filter(([, cell]) => cell.score !== undefined)
+                        .map(([colSystem, cell]) => [
+                            colSystem,
+                            rowSystem,
+                            cell.score as number,
+                            cell.categoryScores,
+                        ] as [string, string, number, (Record<string, number> | undefined)?]),
+                ),
+                variablesUsed: rawDisplayData.variablesUsed,
+                partialPairs: [],
+            });
+        }
+
+        if (selectedCapabilityGroup && capabilityGroupMap[selectedCapabilityGroup]) {
+            return filterHeatmapBySystems(rawDisplayData, capabilityGroupMap[selectedCapabilityGroup]);
+        }
+
+        return rawDisplayData;
+    })();
     const effectiveMinDisplayScore = Math.min(appliedMinDisplayScore, appliedMaxDisplayScore);
     const effectiveMaxDisplayScore = Math.max(appliedMinDisplayScore, appliedMaxDisplayScore);
 

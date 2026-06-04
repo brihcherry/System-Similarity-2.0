@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { filterHeatmapBySystems } from "./filterHeatmapBySystems-New";
+import { transformHeatmap } from "./transformHeatmap-New";
 import type { HeatmapMatrix } from "../types";
 
 describe("filterHeatmapBySystems", () => {
@@ -71,5 +72,36 @@ describe("filterHeatmapBySystems", () => {
         expect(result.matrix).toEqual({});
         expect(result.minScore).toBe(62);
         expect(result.maxScore).toBe(62);
+    });
+
+    it("keeps capability-group views symmetric while supporting legacy compact non-DBS all-systems transform", () => {
+        const output = {
+            layout: "SystemSimilarity",
+            pkqlOutput: { insights: [] },
+            headers: ["System1", "System2", "Score"] as [string, string, string],
+            data: [["SystemA", "SystemB", 80]] as [string, string, number][],
+            partialPairs: [["SystemC", "SystemA", { Clinical: 70 }]] as [string, string, Record<string, number>][],
+        };
+
+        const legacyAllSystems = transformHeatmap(output as any);
+        expect(legacyAllSystems.xSystems).toEqual(["SystemA"]);
+        expect(legacyAllSystems.ySystems).toEqual(["SystemB"]);
+
+        const symmetricGroup = filterHeatmapBySystems(
+            {
+                ...legacyAllSystems,
+                xSystems: ["SystemA", "SystemB", "SystemC"],
+                ySystems: ["SystemA", "SystemB", "SystemC"],
+                matrix: {
+                    SystemA: {},
+                    SystemB: { SystemA: { score: 80 } },
+                    SystemC: {},
+                },
+            },
+            ["SystemA", "SystemB", "SystemC"],
+        );
+
+        expect(symmetricGroup.xSystems).toEqual(["SystemA", "SystemB", "SystemC"]);
+        expect(symmetricGroup.ySystems).toEqual(["SystemA", "SystemB", "SystemC"]);
     });
 });

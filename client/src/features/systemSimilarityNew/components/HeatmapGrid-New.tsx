@@ -88,7 +88,7 @@ export const HeatmapGridNew = ({
                         className="inline-block w-4 h-4 rounded-sm align-middle mr-1"
                         style={{ backgroundColor: "#f3f4f6" }}
                     />
-                    {dbsMode ? "no data" : "Score \u2264 50"}
+                    {dbsMode ? "no data" : "No data or incomplete categories"}
                 </span>
                 <span className="text-xs text-gray-400">
                     <span
@@ -238,7 +238,7 @@ export const HeatmapGridNew = ({
                         <div className="mt-1 text-gray-400 italic">
                             {dbsMode
                                 ? "No similarity data available"
-                                : "Score \u2264 50 \u2014 Filtered Out"}
+                                : "No similarity data available or categories are incomplete for this pair"}
                         </div>
                     )}
                     {tooltip.status === "partial-data" && (
