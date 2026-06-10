@@ -98,17 +98,6 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     Map<String, Map<String, Object>> keyHash =
         (Map<String, Map<String, Object>>) khNoun.getValue();
 
-    // ── 3b. Load DBS-mode flag from var-store (default false) ─────────────────
-    boolean dbsMode = false;
-    NounMetadata dbsModeNoun = this.insight.getVarStore()
-        .get(GetSystemSimilarityDataSourcesReactor.VARSTORE_DBS_MODE);
-    if (dbsModeNoun != null) {
-      Object modeVal = dbsModeNoun.getValue();
-      if (modeVal instanceof Boolean) {
-        dbsMode = (Boolean) modeVal;
-      }
-    }
-
     // ── 4. Determine which variables to use ──────────────────────────────────
     Set<String> availableVars = paramDataHash.keySet();
 
@@ -196,8 +185,8 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
       totalPairsEvaluated++;
 
-      // Keep legacy threshold behavior for non-DBS runs only.
-      if (!dbsMode && minimumScore > 0 && score < minimumScore) {
+      // Apply minimum score threshold consistently in all modes.
+      if (minimumScore > 0 && score < minimumScore) {
         continue;
       }
 
@@ -209,14 +198,15 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
       completedKeys.add(pairKey);
     }
 
-    // ── 6b. In DBS mode, collect pairs with partial category data ─────────────
+    // ── 6b. Collect pairs with partial category data ────────────────────────
     //
     // These are pairs that exist in at least one category bucket but were
     // excluded from the main pass (missing data in one or more categories).
     // They remain blank cells on the map but carry partial categoryScores
-    // for display in the hover tooltip.
+    // for display in the hover tooltip.  Collected in all modes so that
+    // non-DBS capability-group views can show per-category breakdowns.
     List<Object[]> partialRows = new ArrayList<>();
-    if (dbsMode) {
+    {
       Set<String> allPairKeys = new HashSet<>();
       for (String var : orderedVars) {
         allPairKeys.addAll(paramDataHash.get(var).keySet());

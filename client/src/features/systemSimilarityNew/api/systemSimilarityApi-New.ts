@@ -15,8 +15,8 @@ type RunPixelFn = <T = unknown>(
 /** TAP_Core_Data engine UUID used by GetSystemSimilarityDataSources. */
 const DATABASE_ID = "133db94b-4371-4763-bff9-edf7e5ed021b";
 
-/** Hardcoded DBS subset names for the dedicated map toggle. */
-const DBS_SYSTEMS = [
+/** Hardcoded DBS subset names, exposed as a capability group entry. */
+export const DBS_SYSTEMS = [
     "JOMIS",
     "DODTR",
     "DODCR",
@@ -128,18 +128,13 @@ function toOutputResponse(raw: ComputeScoresResponse): OutputResponse {
 /**
  * Runs GetSystemSimilarityDataSources to populate the var-store with
  * paramDataHash and keyHash.  Must be called before ComputeSimilarityScores.
+ * Always loads all systems; DBS filtering is handled client-side via the
+ * capability group dropdown.
  */
 async function ensureDataSourcesLoaded(
     runPixel: RunPixelFn,
-    options?: HeatmapRequestOptions,
 ): Promise<void> {
-    const dbsOnly = options?.dbsOnly === true;
-    const dbsSystemList = JSON.stringify([...DBS_SYSTEMS]);
-
-    const pixel = dbsOnly
-        ? `GetSystemSimilarityDataSources(database=["${DATABASE_ID}"], systemList=${dbsSystemList});`
-        : `GetSystemSimilarityDataSources(database=["${DATABASE_ID}"]);`;
-
+    const pixel = `GetSystemSimilarityDataSources(database=["${DATABASE_ID}"]);`;
     await runPixel(pixel);
 }
 
@@ -152,7 +147,7 @@ export async function fetchInitialHeatmapFromReactor(
     runPixel: RunPixelFn,
     options?: HeatmapRequestOptions,
 ): Promise<OutputResponse> {
-    await ensureDataSourcesLoaded(runPixel, options);
+    await ensureDataSourcesLoaded(runPixel);
     const minimumScore = options?.minimumScore ?? 50;
     const result = await runPixel<ComputeScoresResponse>(
         `ComputeSimilarityScores(minimumScore=[${minimumScore}]);`,
@@ -171,11 +166,11 @@ export async function refreshHeatmapOutput(
     runPixel: RunPixelFn,
     options?: HeatmapRequestOptions,
 ): Promise<OutputResponse> {
-    // Only re-run the data-source reactor when explicitly needed (i.e. dbsOnly
-    // changed since the last load).  On normal Refresh clicks the var-store
-    // already holds the correct subset, so we skip straight to scoring.
+    // Only re-run the data-source reactor when explicitly needed.
+    // On normal Refresh clicks the var-store already holds the correct data
+    // and we can go straight to scoring.
     if (!options?.skipDataSourcesReload) {
-        await ensureDataSourcesLoaded(runPixel, options);
+        await ensureDataSourcesLoaded(runPixel);
     }
 
     const varsJson = JSON.stringify(payload.selectedVars);
@@ -199,16 +194,23 @@ export async function refreshHeatmapOutput(
  *
  * Returns an empty object if the reactor call fails (dropdown shows "All Systems" only).
  */
+/** Label used for the DBS Systems entry in the capability group dropdown. */
+export const DBS_CAPABILITY_GROUP_LABEL = "DBS Systems";
+
 export async function fetchCapabilityGroups(
     runPixel: RunPixelFn,
 ): Promise<CapabilityGroupMap> {
+    let groups: CapabilityGroupMap = {};
     try {
         const result = await runPixel<CapabilityGroupMap>(
             `GetSystemsByCapabilityGroup(database=["${DATABASE_ID}"]);`,
         );
-        return result ?? {};
+        groups = result ?? {};
     } catch {
         console.warn("GetSystemsByCapabilityGroup failed; capability group filter unavailable.");
-        return {};
     }
+    // Inject the hardcoded DBS systems as a capability group entry so it
+    // appears in the dropdown alongside backend-sourced groups.
+    groups[DBS_CAPABILITY_GROUP_LABEL] = [...DBS_SYSTEMS];
+    return groups;
 }

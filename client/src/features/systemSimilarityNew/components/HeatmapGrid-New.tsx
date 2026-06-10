@@ -9,7 +9,6 @@ interface HeatmapGridProps {
     displayMode?: "score" | "percentile";
     minDisplayScore?: number;
     maxDisplayScore?: number;
-    dbsMode?: boolean;
 }
 
 const CELL_PX = 32;
@@ -22,7 +21,6 @@ export const HeatmapGridNew = ({
     displayMode = "score",
     minDisplayScore = 0,
     maxDisplayScore = 100,
-    dbsMode = false,
 }: HeatmapGridProps) => {
     const { xSystems, ySystems, matrix, minScore, maxScore } = data;
     const metricLabel = displayMode === "percentile" ? "Percentile" : "Score";
@@ -88,7 +86,7 @@ export const HeatmapGridNew = ({
                         className="inline-block w-4 h-4 rounded-sm align-middle mr-1"
                         style={{ backgroundColor: "#f3f4f6" }}
                     />
-                    {dbsMode ? "no data" : "No data or incomplete categories"}
+                    No data or incomplete categories
                 </span>
                 <span className="text-xs text-gray-400">
                     <span
@@ -236,9 +234,7 @@ export const HeatmapGridNew = ({
                     )}
                     {tooltip.status === "no-data" && (
                         <div className="mt-1 text-gray-400 italic">
-                            {dbsMode
-                                ? "No similarity data available"
-                                : "No similarity data available or categories are incomplete for this pair"}
+                            No similarity data available or categories are incomplete for this pair
                         </div>
                     )}
                     {tooltip.status === "partial-data" && (

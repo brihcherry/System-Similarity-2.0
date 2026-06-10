@@ -60,10 +60,9 @@ export interface RefreshHeatmapRequest {
 
 /** Optional request knobs for selecting the loaded system universe. */
 export interface HeatmapRequestOptions {
-    dbsOnly?: boolean;
     /** When true, skip re-running GetSystemSimilarityDataSources and use
      * whatever data is already cached in the var-store. Set this on Refresh
-     * calls when the dbsOnly toggle hasn't changed since the last full load. */
+     * calls when the data sources haven't changed since the last full load. */
     skipDataSourcesReload?: boolean;
     /** Pairs with an overall score below this value are excluded from the
      * ComputeSimilarityScores response.  Defaults to 0 (no filtering) when
