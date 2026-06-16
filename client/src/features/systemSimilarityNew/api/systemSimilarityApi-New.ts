@@ -100,7 +100,11 @@ interface ComputeScoresResponse {
     headers: [string, string, string];
     data: SimilarityRow[];
     variablesUsed: string[];
-    minimumWeightsUsed: Record<string, number> | null;
+    /** Per-variable weight multipliers echoed back from the reactor.
+     *  Default weight for any selected variable absent from the map is 1.0;
+     *  composites are computed as Σ(wᵢ·sᵢ) / Σ(wᵢ). Not a per-variable score
+     *  cutoff — the only score filter is the global `minimumScore` argument. */
+    specifiedWeightsUsed: Record<string, number> | null;
     totalPairsEvaluated: number;
     pairsAboveThreshold: number;
     /** All systems in the current comparison universe, including those with no data. */
@@ -157,7 +161,7 @@ export async function fetchInitialHeatmapFromReactor(
 
 /**
  * Refreshes the heatmap using ComputeSimilarityScores with selected variables
- * and optional per-variable minimum score filters.
+ * and optional per-variable weight multipliers.
  *
  * Pixel: ComputeSimilarityScores(selectedVars=[...], specifiedWeights={...});
  */

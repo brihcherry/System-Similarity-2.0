@@ -22,17 +22,21 @@ import reactors.AbstractProjectReactor;
  * {@code SimilarityHeatMapSheet} and the {@code flattenData()} method in
  * {@code SysSimHeatMapSheet}.
  *
- * <h3>Legacy algorithm (replicated exactly)</h3>
+ * <h3>Algorithm</h3>
  * <ol>
  *   <li>For each pair key from the smallest variable's key set:</li>
  *   <li>For each selected variable, look up the pair's Score.</li>
- *   <li>If the pair is missing from ANY variable → skip the pair entirely.</li>
- *   <li>If {@code specifiedWeights} contains a minimum for this variable and
- *       the score is below it → skip the pair entirely.</li>
- *   <li>Accumulate in legacy order: {@code score += (varScore / totalVars)}.</li>
- *   <li>After all vars: if DBS mode is off and the pair score is below
- *       {@code minimumScore} (default 0 → no threshold) → skip pair;
- *       if DBS mode is on, keep pair regardless of this threshold.</li>
+ *   <li>If the pair is missing from ANY variable → skip the pair entirely
+ *       (completeness rule).</li>
+ *   <li>Accumulate a <b>weighted average</b> across variables:
+ *       {@code weightedSum += w * varScore; totalWeight += w} where
+ *       {@code w = specifiedWeights.getOrDefault(var, 1.0)} (negative weights
+ *       are coerced to 0). After the loop:
+ *       {@code score = totalWeight > 0 ? weightedSum / totalWeight
+ *                                      : uniformSum / totalVars} so an
+ *       all-zero-weight input falls back to a uniform 1/N mean.</li>
+ *   <li>After all vars: if the composite is below {@code minimumScore}
+ *       (default 0 → no threshold) → skip pair.</li>
  * </ol>
  *
  * <h3>Prerequisites</h3>
@@ -41,20 +45,21 @@ import reactors.AbstractProjectReactor;
  *
  * <h3>Pixel calls</h3>
  * <pre>
- *   // Initial load (all vars, no minimums):
+ *   // Initial load (all vars, default weight 1.0 each → uniform mean):
  *   ComputeSimilarityScores();
  *
- *   // Refresh with selected vars and per-variable minimum score filters:
+ *   // Refresh with selected vars and per-variable weight multipliers:
  *   ComputeSimilarityScores(
  *     selectedVars=["Deployment_(Theater/Garrison)", "User_Types"],
- *     specifiedWeights={"Deployment_(Theater/Garrison)": 90, "User_Types": 80}
+ *     specifiedWeights={"Deployment_(Theater/Garrison)": 50, "User_Types": 1}
  *   );
  * </pre>
  *
- * <p><b>Note:</b> {@code specifiedWeights} are per-variable <i>minimum score
- * filters</i>, not weighting multipliers.  If a pair's score for a variable is
- * below the specified minimum, the entire pair is excluded.  This matches the
- * legacy {@code calculateHash(minimumWeights)} behaviour.
+ * <p><b>Note:</b> {@code specifiedWeights} are per-variable <i>multipliers</i>
+ * in a weighted average, matching the legacy
+ * {@code SimilarityHeatMapSheet.calculateHash(minimumWeights)} behaviour where
+ * any variable absent from the map defaults to weight 1.0. They are not
+ * per-variable score-cutoff filters.
  */
 public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
@@ -69,7 +74,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
     // ── 1. Parse optional parameters ─────────────────────────────────────────
     List<String> selectedVars = getSelectedVars();
-    Map<String, Double> minimumWeights = parseWeights(getMap("specifiedWeights"));
+    Map<String, Double> specifiedWeights = parseWeights(getMap("specifiedWeights"));
     double minimumScore = parseMinimumScore();
 
     // ── 2. Load paramDataHash from var-store ─────────────────────────────────
@@ -134,19 +139,22 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
     Set<String> masterKeys = paramDataHash.get(smallestVar).keySet();
 
-    // ── 6. Compute simple average for each pair (legacy algorithm) ───────────
+    // ── 6. Compute weighted average for each pair (legacy algorithm) ─────────
     //
-    // Legacy formula: accumulate score as score += varScore / totalVars in orderedVars.
-    // specifiedWeights are per-variable MINIMUM score filters, not multipliers.
-    // If a variable's score for a pair is below its minimum → exclude pair.
-    // After accumulation: include pair only if score > 50.
+    // Weighted formula: score = Σ(wᵢ·sᵢ) / Σ(wᵢ), where wᵢ defaults to 1.0 for
+    // any selected variable absent from specifiedWeights. Negative weights are
+    // coerced to 0. If every selected weight is 0, fall back to a uniform 1/N
+    // mean to avoid divide-by-zero. The global minimumScore threshold is
+    // applied to the composite, mirroring legacy flattenData() < 50 filtering.
     List<Object[]> rows = new ArrayList<>();
     Set<String> completedKeys = new HashSet<>();
     int totalPairsEvaluated = 0;
     int pairsAboveThreshold = 0;
 
     for (String pairKey : masterKeys) {
-      double score = 0.0;
+      double weightedSum = 0.0;
+      double totalWeight = 0.0;
+      double uniformSum = 0.0;
       boolean storeCell = true;
       Map<String, Double> varScores = new LinkedHashMap<>();
 
@@ -166,22 +174,27 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
 
         double varScore = ((Number) scoreObj).doubleValue();
 
-        // Check per-variable minimum filter (legacy: minimumWeights)
-        if (minimumWeights != null) {
-          Double minVal = minimumWeights.get(var);
-          if (minVal != null && varScore < minVal) {
-            storeCell = false;
-            break;
+        double weight = 1.0;
+        if (specifiedWeights != null) {
+          Double w = specifiedWeights.get(var);
+          if (w != null) {
+            weight = Math.max(0.0, w);
           }
         }
 
+        weightedSum += weight * varScore;
+        totalWeight += weight;
+        uniformSum += varScore;
         varScores.put(var, varScore);
-        score += varScore / totalVars;
       }
 
       if (!storeCell) {
         continue;
       }
+
+      double score = totalWeight > 0.0
+          ? weightedSum / totalWeight
+          : uniformSum / totalVars;
 
       totalPairsEvaluated++;
 
@@ -255,7 +268,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     result.put("data", rows);
     result.put("partialPairs", partialRows);
     result.put("variablesUsed", selectedVars);
-    result.put("minimumWeightsUsed", minimumWeights);
+    result.put("specifiedWeightsUsed", specifiedWeights);
     result.put("totalPairsEvaluated", totalPairsEvaluated);
     result.put("pairsAboveThreshold", pairsAboveThreshold);
     result.put("allSystems", allSystems);
@@ -303,7 +316,7 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
       List<String> strVals = grs.getAllStrValues();
       if (strVals != null && !strVals.isEmpty()) {
         try {
-          return Double.parseDouble(strVals.get(0).trim());
+          return sanitizeThreshold(Double.parseDouble(strVals.get(0).trim()));
         } catch (NumberFormatException e) {
           // fall through
         }
@@ -311,10 +324,16 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
       // Try as numeric noun directly
       prerna.sablecc2.om.nounmeta.NounMetadata noun = grs.getNoun(0);
       if (noun != null && noun.getValue() instanceof Number) {
-        return ((Number) noun.getValue()).doubleValue();
+        return sanitizeThreshold(((Number) noun.getValue()).doubleValue());
       }
     }
     return 0.0;
+  }
+
+  // Non-finite thresholds (NaN, ±Infinity) would silently disable or invert the
+  // composite filter; coerce them to "no threshold".
+  private static double sanitizeThreshold(double value) {
+    return Double.isFinite(value) ? value : 0.0;
   }
 
   private static Map<String, Double> parseWeights(Map<String, Object> raw) {
@@ -324,7 +343,12 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     Map<String, Double> weights = new LinkedHashMap<>();
     for (Map.Entry<String, Object> entry : raw.entrySet()) {
       if (entry.getValue() instanceof Number) {
-        weights.put(entry.getKey(), ((Number) entry.getValue()).doubleValue());
+        double w = ((Number) entry.getValue()).doubleValue();
+        // Drop NaN / ±Infinity so they default to weight 1.0 in the loop and
+        // cannot produce NaN composites that bypass the minimumScore filter.
+        if (Double.isFinite(w)) {
+          weights.put(entry.getKey(), w);
+        }
       }
     }
     return weights.isEmpty() ? null : weights;
