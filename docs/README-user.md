@@ -1,198 +1,223 @@
 # System Similarity — User Guide
 
-This application answers the question: **"How similar are military health IT systems to one another?"** It queries the TAP_Core_Data knowledge graph to compute pairwise similarity scores across a universe of defense health systems, then displays those scores as an interactive color-coded heatmap. Use it to identify systems with overlapping capabilities, find consolidation candidates, or understand functional gaps across the MHS IT portfolio.
+## Decisions
+
+- **DBS surface (Q1):** Confirmed final. DBS is **not** a separate toggle; it appears as the **"DBS Systems"** entry in the Capability Group dropdown. The legacy "All Systems / DBS Only" toggle does not exist in the current app.
+- **Page name (Q2):** Use **"System Similarity"** everywhere in this guide. (The navigation link is labeled "System Similarity Heatmap"; the page title shown at the top of the screen is "System Similarity". Both refer to the same and only page.)
+- **Color schemes (Q14):** Confirmed final. All four schemes — Red, Blue, Green, and Traffic Light — are supported.
 
 ---
 
-## Getting Started
+## 1. What This App Answers
 
-### Logging In
+This app answers a single question: **How similar are military health IT systems to one another?** It loads pairwise similarity data for the systems in the TAP_Core_Data knowledge graph and renders the results as an interactive color-coded heatmap, so you can quickly spot pairs of systems with overlapping capabilities, find consolidation candidates, or see where functional coverage is thin.
 
-Navigate to the app in your SEMOSS environment. If you are not already authenticated, you will be redirected to the login page.
+---
 
-- Enter your **Username** and **Password**
-- Click **Log In** (or press Enter in the password field)
-- If credentials are incorrect, an error message appears inline: *"Username or password is incorrect."*
+## 2. Getting Started
 
-Once logged in, the app loads your heatmap data automatically. A full-screen loading indicator is shown while data is being fetched.
+### Logging in
 
-To log out, click the **user icon** in the top-right corner of the navigation bar and select **Logout**.
+When you open the app while signed out, you are sent to the login page.
 
-### Navigation Bar
+1. Enter your **Username**.
+2. Enter your **Password**.
+3. Click **Log in** (or press Enter from the password field).
 
-| Link | What it shows |
+While the request is in flight the button label changes to **Logging in...**. If the credentials are rejected, the form shows the inline message:
+
+> Username or password is incorrect.
+
+Once you are signed in, the heatmap page loads automatically.
+
+### Navigating
+
+The top navigation bar has the SEMOSS logo on the left and one navigation link:
+
+| Link | What it opens |
 |---|---|
-| **System Similarity Heatmap** | The main heatmap visualization (the only page) |
+| System Similarity Heatmap | The System Similarity page (the only page in this app) |
 
----
+Clicking the SEMOSS logo takes you to the same page.
 
-## The System Similarity Heatmap
+### The user menu
 
-The heatmap is a 2D grid where every row and every column represents a military health IT system. Each **cell** at the intersection of two systems shows how similar those two systems are to one another based on shared attributes in the knowledge graph.
+A person icon in the top-right corner opens your user menu. Hovering it shows the title **View user menu**. The menu contains:
 
-- **Rows** = System 2 (labeled horizontally on the left, 160 px wide)
-- **Columns** = System 1 (labeled vertically at the top, rotated)
-- **Cells** = pairwise similarity score between the two systems
-
-The row and column headers are **sticky** — they stay visible as you scroll the grid. The top-left corner is also pinned.
-
-### What the Colors Mean
-
-Each cell is filled with a color indicating how similar two systems are. Higher similarity = darker/more saturated color. Lower similarity = lighter color.
-
-A **color legend** is pinned above the grid showing a gradient bar with the min and max values in range, plus swatches for "No Data" and "Filtered Out" cells.
-
-| Cell appearance | Meaning |
+| Item | What it does |
 |---|---|
-| Colored (dark to light) | Two systems have a similarity score within the display range |
-| Light gray (`#f3f4f6`) | No similarity data available for this pair, or self-comparison |
-| Near-white (`#f9fafb`) | A score exists but falls outside the current display range (filtered out) |
-| Self-comparison (diagonal) | Always gray — comparing a system to itself is excluded by design |
-
-### Hover Tooltips
-
-Hover over any cell to see a detailed tooltip:
-
-**For a scored cell:**
-- System names (bold row system, `↔` column system)
-- **Similarity score** (yellow)
-- **Percentile** — rank of this pair among all scored pairs (blue)
-- **Per-category scores** (if available) — each of the 6 scoring variables and its individual score
-
-**For a no-data cell:**
-- System names
-- *"No similarity data available"* or *"Score ≤ 50 — Filtered Out"* (italic gray)
-
-**For a filtered-out cell:**
-- Same score and percentile display as a normal cell
-- *"Filtered out by display range"* notice at the bottom
+| (Your username) | Shown as a label so you can confirm who is signed in |
+| Logout | Signs you out and reloads the app back to the login page |
 
 ---
 
-## Understanding the Scores
+## 3. The Heatmap
 
-### What Is a Similarity Score?
+The heatmap is a grid where every column and every row is a system. Each cell shows how similar the two systems at that intersection are to one another.
 
-Each pair of systems receives a score from **0 to 100** based on how many attributes they share across up to six categories:
+- **Columns (X axis)** are labeled **System 1** along the top, with text rotated to fit.
+- **Rows (Y axis)** are labeled **System 2** along the left side.
+- Column and row headers are **sticky** — they stay visible as you scroll the grid, and the top-left corner is pinned as a small legend that reads `X-Axis: System 1` / `Y-Axis: System 2`.
+
+A color legend is pinned just above the grid. It shows a gradient bar with the active range, the metric being displayed (**Score** or **Percentile**), and two swatches: one for `No data or incomplete categories` and one for `Filtered Out`.
+
+### What each cell color means
+
+| State | Background | Trigger |
+|---|---|---|
+| Scored | `scoreToColor(...)` gradient | Cell has a score in the display range |
+| Filtered out | `#f9fafb` (near-white) | Cell has a score outside the active min/max |
+| No data / incomplete | `#f3f4f6` (light gray) | Cell has no score (self-comparison, or pair absent from result) |
+| Partial data | `#f3f4f6` with hover-only per-category scores | Pair exists in some categories but not all selected ones |
+
+The diagonal — where a system is compared to itself — always falls into the **No data / incomplete** state by design.
+
+---
+
+## 4. Understanding the Scores
+
+Each pair of systems gets a similarity **score** from **0 to 100**, computed as the simple average of however many of the six categories you have enabled. The six categories are:
 
 | Category | What it measures |
 |---|---|
-| **Environment** | Whether both systems operate in the same deployment environment (Theater vs. Garrison) |
-| **Business Processes Supported** | Overlap in the business processes each system supports |
-| **User Types** | Overlap in the types of personnel who use each system |
-| **Data Subject Area** | Overlap in the data domains each system manages |
-| **Interfaces** | Overlap in the system interfaces each system connects to |
-| **Activities Supported** | Overlap in the operational activities each system supports |
+| Environment | Whether the two systems operate in the same deployment environment (for example, Theater vs. Garrison). |
+| Business Processes Supported | How much overlap there is between the business processes each system supports. |
+| User Types | How much overlap there is between the kinds of personnel who use each system. |
+| Data Subject Area | How much overlap there is between the data domains each system manages. |
+| Interfaces | How much overlap there is between the system interfaces each system provides or consumes. |
+| Activities Supported | How much overlap there is between the operational activities each system supports. |
 
-The final score is the **simple average** of whichever categories are included. Only pairs with a score above the minimum threshold (default: 50) are shown.
+A category that has no data for a given pair drops that pair out of the average. If a pair has data for some categories but not all of them, it appears as a **partial-data** cell rather than a scored cell.
 
-### What Is a Percentile?
+### Percentile
 
-A **percentile** is the relative rank of a pair's score among all pairs returned. A percentile of 100 means this is the most similar pair in the dataset; a percentile of 0 means it is the least similar. Pairs with identical scores receive the same percentile. Percentiles are computed entirely on the client side from the returned data.
+A pair's **percentile** is its rank among every scored pair currently returned, expressed on a 0–100 scale.
 
-### Score vs. Percentile Display
+- 100 means this is among the most similar pairs in the result set.
+- 0 means it is among the least similar.
+- Pairs with identical scores share the same percentile (average rank for ties).
+- Percentile is computed in your browser from the scored pairs, so it changes whenever you refresh the heatmap with a different set of categories or thresholds.
 
-Use the **Display Mode** toggle in the right sidebar to switch between:
-- **Score** — colors cells by their raw similarity score
-- **Percentile** — colors cells by their relative rank (0–100)
-
----
-
-## Controls (Right Sidebar)
-
-The sidebar on the right contains all display and scoring controls. It can be collapsed with the **Hide** button and re-expanded with **Show Controls**.
+You can switch the cells and tooltips between raw score and percentile using the **Display Mode** control in the right sidebar.
 
 ---
 
-### System Filter
+## 5. Controls (Left Sidebar)
 
-**What it does:** Limits which systems appear on the heatmap axes.
+Every display and scoring control lives in the left sidebar. The sidebar is open by default. Click **Hide** at the top of the sidebar to collapse it, and **Show Controls** in the left margin to bring it back.
 
-**How to use:** Click the toggle button to switch between modes:
-- **All Systems** — shows every system in the knowledge graph that has similarity data
-- **DBS Only** — restricts both axes to a curated list of ~76 named military health IT systems (e.g., MHS GENESIS, AHLTA, CHCS, AERO). Systems in the DBS list with no data still appear as empty rows/columns.
+The controls appear in this order from top to bottom.
 
-**What you see:** Switching modes triggers a full reload of both data sources and scores.
+### Capability Group
 
----
+Filters the heatmap to systems within a single capability group. 
+
+- The dropdown's first option is **All Systems**, which shows the full result set with no filter.
+- The remaining options are the capability groups defined in the knowledge graph, plus the **"DBS Systems"** entry which is pinned at the top of the list.
+- Selecting an entry filters both axes of the heatmap to the systems in that group. The filter is applied immediately and does not refetch data.
 
 ### Display Mode
 
-**What it does:** Changes whether cell colors and tooltip values reflect raw scores or percentile ranks.
+Toggles between **Score** mode (cell colors and tooltip values reflect raw similarity scores) and **Percentile** mode (cells and tooltips reflect percentile rank from 0 to 100).
 
-**How to use:** Click the toggle button to switch between **Score** and **Percentile**.
-
-**What you see:** Cell colors and the color legend scale update immediately. The tooltip values update on the next hover.
-
----
+- Click the toggle to switch sides. The active side is highlighted.
+- The legend gradient and scale update immediately.
+- Tooltip values reflect the new mode the next time you hover.
 
 ### Color Scheme
 
-**What it does:** Changes the color palette used for the heatmap gradient.
+Sets the color palette used to fill scored cells. A small preview swatch is shown next to each option so you can see the low-to-high gradient before picking.
 
-**How to use:** Select one of four radio options. A gradient preview swatch is shown next to each option.
-
-| Option | Low → High |
+| Option | Low → High gradient |
 |---|---|
-| **Red** (default) | Light yellow → medium-dark red |
-| **Blue** | Very light blue → dark blue |
-| **Green** | Light green → dark green |
-| **Traffic Light** | Yellow → orange → red |
+| Red | Light yellow → medium-dark red |
+| Blue | Very light blue → dark blue |
+| Green | Light green → dark green |
+| Traffic Light | Yellow → orange → red |
 
----
+Pick one with the radio button. The grid recolors immediately.
 
-### Display Range (Minimum / Maximum)
+### Visible Score Range / Visible Percentile Range
 
-**What it does:** Sets the visible score or percentile range. Pairs outside this range are shown as near-white "filtered out" cells rather than colored cells — they still have data, they are just visually suppressed.
+Sets the score (or percentile) window that gets colored. Cells with values outside this window are not removed from the grid — they appear as the near-white **Filtered Out** color so you can still see where they live.
 
-**How to use:** Enter values (0–100) in the **Minimum** and **Maximum** number inputs. The range is applied the next time you click **Refresh Heatmap**.
-
-**What you see:** The header below the page title shows the active range as *"score range: {min} – {max}"*.
-
----
+- Header is labeled **Visible Score Range** in Score mode and **Visible Percentile Range** in Percentile mode.
+- Enter values from **0 to 100** in the **Minimum** and **Maximum** number inputs.
+- The new range is **applied when you click Refresh Heatmap** — changing the inputs alone does not redraw the grid.
+- The currently applied range is shown in the page header status line (see Section 7).
 
 ### Refresh Heatmap
 
-**What it does:** Re-runs the similarity scoring with a custom selection of variables and optional minimum score filters per variable, without reloading the page.
+Re-runs the similarity computation with the categories and category weights you choose. It does not reload the page.
 
-**How to use:**
-1. In the **Refresh Heatmap** section at the bottom of the sidebar, check or uncheck the six scoring variables to include or exclude them.
-2. Optionally, enter an integer **weight** next to any checked variable. This acts as a **minimum score filter** for that variable — pairs where that variable scores below the specified value are excluded entirely.
+To use it:
+
+1. In the Refresh Heatmap section, check or uncheck the six categories to include or exclude them.
+2. Optionally, type an integer in the **Weight (optional integer)** box next to any checked category. The adjusted weights range from 0 to 100 and alter the amount a specific category contributes to the overall score.
 3. Click the blue **Refresh Heatmap** button.
 
-**What you see:**
-- The button label changes to *"Refreshing..."* and is disabled while the request is in flight.
-- On success: the heatmap updates with the new scores and the display range snapshots to the values currently in the min/max inputs.
-- On failure: a red error box appears below the button showing *"Refresh failed"* and the error detail.
-- If no variables are checked: a red box shows *"Select at least one variable before refreshing."*
+While the request is running:
 
-**Default variables** (all enabled):
-- Environment
-- Business Processes Supported
-- User Types
-- Data Subject Area
-- Interfaces
-- Activities Supported
+- The button label changes to **Refreshing...** and the button is disabled.
+
+On success:
+
+- The grid updates with the new scores.
+- The visible range snaps to whatever was in the Minimum and Maximum inputs at the moment you clicked Refresh.
+
+On failure or invalid input, see Section 8.
 
 ---
 
-## Page Header
+## 6. Hover Tooltips
 
-Below the **"System Similarity"** page title, a status line shows:
+Hover any cell to see a tooltip. The tooltip always shows the row system in bold and the column system below it after a `↔` symbol. The rest of the contents depend on the cell's state.
 
-`"{N} x-systems · {M} y-systems · score range: {min} – {max}"`
-
-This reflects the number of systems currently on each axis and the active display range.
+| Cell state | What the tooltip shows |
+|---|---|
+| Scored | `Similarity score: {n}` and `Percentile: {n}`, followed by an `Individual Category Scores` list with the rounded score for each category in the result. |
+| Partial data | `Missing one or more categories`, followed by an `Individual Category Scores` list showing each category's score, or `N/A` for any category with no data for this pair. |
+| Filtered out | `Similarity score: {n}` and `Percentile: {n}`, the `Individual Category Scores` list, and at the bottom the notice `Filtered out by display range`. |
+| No data | `No similarity data available or categories are incomplete for this pair`. |
+| Self (diagonal) | `Comparing a system with itself — score of 100 is excluded by default`. |
 
 ---
 
-## Error States
+## 7. Page Header Status Line
+
+Below the page title is a one-line status that summarizes what is currently on screen. The format is:
+
+```
+{N} x-systems · {M} y-systems · score range: {min} – {max}
+```
+
+- `{N}` is the number of columns currently drawn (X axis).
+- `{M}` is the number of rows currently drawn (Y axis).
+- `{min}` and `{max}` are the active display window, shown with one decimal place.
+
+The label always reads `score range` regardless of whether Display Mode is set to Score or Percentile.
+
+---
+
+## 8. Error States
 
 | Situation | What you see |
 |---|---|
-| App fails to connect to SEMOSS | Full-screen error page with a triangle icon and *"An error has occurred. Please try again or contact support if the problem persists."* |
-| Login credentials incorrect | Inline message: *"Username or password is incorrect."* |
-| Heatmap data fails to load | Red bordered card: *"Failed to load heatmap"* with error detail |
-| Refresh fails | Red box below the Refresh button: *"Refresh failed"* with error detail |
-| No variables selected for refresh | Red box: *"Select at least one variable before refreshing."* |
-| Unknown URL | Automatically redirected to the heatmap page |
+| The app itself fails to start | Full-page warning with a triangle icon and the message: `An error has occurred. Please try again or contact support if the problem persists.` |
+| The heatmap fails to load | Red bordered card in the center of the heatmap area with the heading `Failed to load heatmap` and the error detail beneath. |
+| A refresh fails | Red box at the bottom of the sidebar with the heading `Refresh failed` and the error detail beneath. |
+| You click Refresh with no categories selected | Red box with the message: `Select at least one variable before refreshing.` |
+| You enter an unknown URL | You are sent automatically to the heatmap page. |
+
+---
+
+## Glossary
+
+| Term | Definition |
+|---|---|
+| Score | A 0–100 number for one pair of systems, equal to the average of the per-category scores for the categories included in the current run. |
+| Percentile | A 0–100 rank of a pair's score among all currently scored pairs, with ties getting an average rank. |
+| Partial pair | A pair of systems that has scores for some of the enabled categories but not all of them. Shown as a gray cell whose tooltip lists each category individually. |
+| Capability group | A named group of systems defined in the knowledge graph. Used as a client-side filter for the heatmap axes. |
+| DBS Systems | A pre-defined list of named defense health IT systems, available as a single entry at the top of the Capability Group dropdown. |
+| TAP_Core_Data | The underlying knowledge graph the app reads from. You do not need to interact with it directly. |
