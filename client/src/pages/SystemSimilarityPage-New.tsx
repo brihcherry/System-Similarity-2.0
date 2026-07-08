@@ -210,7 +210,7 @@ export const SystemSimilarityPageNew = () => {
                                     })
                                     .map((group) => (
                                         <option key={group} value={group}>
-                                            {group}
+                                            {group.replaceAll("_", " ")}
                                         </option>
                                     ))}
                             </select>
