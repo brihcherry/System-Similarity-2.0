@@ -27,12 +27,12 @@ export const SystemSimilarityPageNew = () => {
     const [colorScheme, setColorScheme] = useState<ColorScheme>("red");
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [displayMode, setDisplayMode] = useState<"score" | "percentile">("score");
-    const [minDisplayScore, setMinDisplayScore] = useState(50);
+    const [minDisplayScore, setMinDisplayScore] = useState(0);
     const [maxDisplayScore, setMaxDisplayScore] = useState(100);
     // Snapshot of min/max that is actually applied to the heatmap display and
     // sent to the reactor.  Only updated when the user clicks Refresh so that
     // changing the slider never causes a partial visual update.
-    const [appliedMinDisplayScore, setAppliedMinDisplayScore] = useState(50);
+    const [appliedMinDisplayScore, setAppliedMinDisplayScore] = useState(0);
     const [appliedMaxDisplayScore, setAppliedMaxDisplayScore] = useState(100);
     const [refreshedData, setRefreshedData] = useState<HeatmapMatrix | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
