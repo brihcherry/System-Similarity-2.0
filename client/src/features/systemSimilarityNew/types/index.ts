@@ -65,8 +65,8 @@ export interface HeatmapRequestOptions {
      * calls when the data sources haven't changed since the last full load. */
     skipDataSourcesReload?: boolean;
     /** Pairs with an overall score below this value are excluded from the
-     * ComputeSimilarityScores response.  Defaults to 0 (no filtering) when
-     * omitted on the reactor side; the UI defaults to 50. */
+    * ComputeSimilarityScores response.  Defaults to 0 (no filtering) when
+    * omitted on the reactor side; the UI defaults to 0. */
     minimumScore?: number;
 }
 
