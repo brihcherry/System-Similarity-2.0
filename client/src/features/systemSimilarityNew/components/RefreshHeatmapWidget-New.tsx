@@ -7,7 +7,6 @@ import {
 } from "../utils/formatRefreshPayload-New";
 
 export const DEFAULT_REFRESH_VARIABLES = [
-    "Environment",
     "Business_Processes_Supported",
     "User_Types",
     "Data_Subject_Area",

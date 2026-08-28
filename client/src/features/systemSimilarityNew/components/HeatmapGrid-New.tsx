@@ -225,8 +225,9 @@ export const HeatmapGridNew = ({
                     className="fixed z-50 pointer-events-none bg-gray-900 text-white text-xs rounded-md px-3 py-2 shadow-xl leading-relaxed"
                     style={{ left: tooltip.x, top: tooltip.y }}
                 >
-                    <div className="font-semibold">{formatDisplayName(tooltip.rowSystem)}</div>
-                    <div className="text-gray-300">↔ {formatDisplayName(tooltip.colSystem)}</div>
+                    <div className="font-semibold">
+                        {formatDisplayName(tooltip.colSystem)} ~ {formatDisplayName(tooltip.rowSystem)}
+                    </div>
                     {tooltip.status === "self" && (
                         <div className="mt-1 text-gray-400 italic">
                             Comparing a system with itself — score of 100 is excluded by default
