@@ -1,7 +1,7 @@
 ﻿# System Similarity — Developer Guide
 
 > **Scope:** Java backend reactors, TypeScript/React frontend, SPARQL data model, Pixel API contracts, build & test workflow, and known gaps. All data access is pure SPARQL against the `TAP_Core_Data` RDF engine.
-> **Last updated:** 2026-06-17 (synthesized from brownfield scan + project-context)
+> **Last updated:** 2026-07-06 (weighted-average semantics refresh)
 
 ---
 
@@ -203,10 +203,12 @@ Stage 1: GetSystemSimilarityDataSources(database=[...], [systemList=[...]])
 Stage 2: ComputeSimilarityScores([selectedVars=[...]], [specifiedWeights={...}], [minimumScore=[N]])
   -> Reads cached data from var-store (NO SPARQL)
   -> Sorts selectedVars by bucket size ascending
-  -> For each pair in master set: accumulates score = sum(varScore) / N
-  -> Drops pairs failing per-variable minimums (specifiedWeights) or global minimumScore
+  -> For each pair in master set: computes weighted average using specifiedWeights
+     (default weight 1.0 for omitted vars)
+  -> Coerces negative weights to 0; if all selected weights are 0, falls back to uniform mean
+  -> Drops pairs only by completeness and global minimumScore
   -> Collects partial pairs (present in >= 1 bucket but excluded from data)
-  -> Returns {headers, data, partialPairs, variablesUsed, minimumWeightsUsed,
+  -> Returns {headers, data, partialPairs, variablesUsed, specifiedWeightsUsed,
               totalPairsEvaluated, pairsAboveThreshold, allSystems, systemLabelMap}
 
 Refresh click: passes skipDataSourcesReload=true -> only Stage 2 reruns.
@@ -353,10 +355,11 @@ All queries are dispatched via `QueryExecutor.executeSelect()`. The SPARQL BINDI
 | Key | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `selectedVars` | `List<String>` | No | All 6 bucket keys | Variable names to include in aggregation |
-| `specifiedWeights` | `Map<String, Number>` | No | `null` | Per-variable **minimum score** filters (not multiplier weights — name is historical) |
+| `specifiedWeights` | `Map<String, Number>` | No | `null` | Per-variable multipliers for weighted-average aggregation (default `1.0` when absent; negative values are coerced to `0`) |
 | `minimumScore` | double | No | `0.0` | Global minimum average score threshold applied **in all modes** |
 
-> **`specifiedWeights` semantics:** Despite the name, a non-null entry `{"Environment": 80}` means "exclude any pair whose Environment score is below 80". It is a per-variable minimum filter, not a weighting multiplier.
+
+
 
 > **`minimumScore` modes:** The global `minimumScore` filter is applied regardless of DBS mode. The server-side default is `0.0`; the frontend always supplies `50` on initial load.
 
@@ -365,9 +368,11 @@ All queries are dispatched via `QueryExecutor.executeSelect()`. The SPARQL BINDI
 1. Read `SYS_SIM_PARAM_DATA_HASH` and `SYS_SIM_KEY_HASH` from var-store (throws `IllegalStateException` if either is missing).
 2. Sort `selectedVars` by bucket size ascending, alphabetical tie-break. The smallest bucket's pair keys become the **master set**.
 3. For each pair key in the master set:
-   - Accumulate `score += varScore / totalVars` for each selected variable.
-   - Skip the pair if any variable is missing it, or if the variable's score falls below its `specifiedWeights` threshold.
-   - Drop pairs whose final mean falls below `minimumScore`.
+  - Accumulate `weightedSum += (specifiedWeight * varScore)` and `totalWeight += specifiedWeight` for each selected variable.
+  - Use `Math.max(0, specifiedWeight)` and treat missing/non-finite specified weights as default `1.0`.
+  - Compute `score = weightedSum / totalWeight` when `totalWeight > 0`; otherwise fall back to a uniform mean.
+  - Skip the pair if any variable is missing it.
+  - Drop pairs whose final mean falls below `minimumScore`.
 4. A second pass collects every pair present in at least one selected bucket but absent from the final `data` list — these become `partialPairs` for tooltip display.
 
 #### Return Value (`NounMetadata(Map, PixelDataType.MAP, PixelOperationType.OPERATION)`)
@@ -378,7 +383,7 @@ All queries are dispatched via `QueryExecutor.executeSelect()`. The SPARQL BINDI
   "data":                  [["SYSA", "SYSB", 75.5, {"Business_Processes_Supported": 80.0, "User_Types": 71.0}]],
   "partialPairs":          [["SYSA", "SYSC", {"Business_Processes_Supported": 60.0}]],
   "variablesUsed":         ["Business_Processes_Supported", "Activities_Supported"],
-  "minimumWeightsUsed":    {"Environment": 90.0},
+  "specifiedWeightsUsed":  {"Environment": 90.0},
   "totalPairsEvaluated":   156,
   "pairsAboveThreshold":   48,
   "allSystems":            ["http://semoss.org/.../SystemA"],
@@ -524,7 +529,7 @@ Key types from `features/systemSimilarityNew/types/index.ts`:
 | Component | File | Role |
 |---|---|---|
 | `HeatmapGridNew` | `HeatmapGrid-New.tsx` | CSS grid with sticky headers, single-cell hover tooltip. Cell status: `self`, `no-data`, `partial-data`, `filtered-out`, or scored. |
-| `RefreshHeatmapWidgetNew` | `RefreshHeatmapWidget-New.tsx` | Variable checklist + per-variable min-score inputs + Refresh button. Emits `RefreshHeatmapRequest` via `onRefresh` prop. |
+| `RefreshHeatmapWidgetNew` | `RefreshHeatmapWidget-New.tsx` | Variable checklist + per-variable weight inputs + Refresh button. Emits `RefreshHeatmapRequest` via `onRefresh` prop. |
 
 **`DEFAULT_REFRESH_VARIABLES`** (must match Stage-1 bucket names exactly):
 `Environment`, `Business_Processes_Supported`, `User_Types`, `Data_Subject_Area`, `Interfaces`, `Activities_Supported`
@@ -606,11 +611,14 @@ Used by: Environment (Theater / Garrison / Both).
 
 Implemented in `ComputeSimilarityScoresReactor`:
 
-  score_pair = (1 / |V|) * sum(score_v_pair for v in V)
+  score_pair = sum(w_v * score_v_pair for v in V) / sum(w_v for v in V)
 
-where V is `selectedVars` (default: all 6 buckets), sorted by ascending bucket size. Per-variable scores are on the [0, 100] scale. A pair is excluded if:
+where V is `selectedVars` (default: all 6 buckets), sorted by ascending bucket size, and `w_v` is from `specifiedWeights` with default `1.0` when omitted. Non-finite weights are ignored (default applies), and negative weights are coerced to `0`.
+
+If all selected weights resolve to `0`, the reactor falls back to a uniform mean to avoid division by zero.
+
+Per-variable scores are on the [0, 100] scale. A pair is excluded if:
 - any selected variable does not contain the pair, **or**
-- a `specifiedWeights[v]` threshold exists and the pair score for that variable is below it, **or**
 - the final mean is below the global `minimumScore` (applies in all modes).
 
 Pairs excluded from `data` but present in at least one selected bucket appear in `partialPairs`.
@@ -757,7 +765,7 @@ Tracked in `_bmad-output/implementation-artifacts/deferred-work.md`.
 |---|---|
 | `GetSystemSimilarityDataSourcesReactor` | All paths — no test file exists |
 | `ComputeSimilarityScoresReactor` | `minimumScore` filter branch |
-| `ComputeSimilarityScoresReactor` | `specifiedWeights` per-variable filter |
+| `ComputeSimilarityScoresReactor` | weighted-aggregation edge paths (all-zero weights fallback, negative/non-finite input handling) |
 | `ComputeSimilarityScoresReactor` | `IllegalStateException` on missing var-store keys |
 | `AbstractProjectReactor` | Error-wrap path in `execute()` |
 
@@ -780,7 +788,7 @@ Tracked in `_bmad-output/implementation-artifacts/deferred-work.md`.
 ### Open questions
 
 1. Is `"DBS Systems"` capability-group the final UX, replacing the All Systems/DBS Only toggle?
-2. Should `specifiedWeights` be renamed to reflect its actual semantics (per-variable minimum filter)?
+2. Should `specifiedWeights` be renamed to reflect its actual semantics (aggregation multipliers)?
 3. Was the 7-variable -> 6-variable collapse intentional or a regression?
 4. Should the server-side `minimumScore` default be aligned with the frontend's `50`?
 5. `assets/AGENTS.md` documents Python MCP tooling that does not exist in this repo — trim or replace?

@@ -1,6 +1,136 @@
 {
-	"_meta": { "last_modified_date": "2026-01-28" },
-	"tools": [
-
-	]
+    "_meta": {"last_modified_date": "2026-08-04"},
+    "tools": [
+        {
+            "inputSchema": {
+                "type": "object",
+                "title": "GetSystemSimilarityDataSources_Arguments",
+                "properties": {
+                    "systemList": {
+                        "description": "Optional List<String> of system URIs or labels to filter results. If omitted, all systems are returned. Absolute URIs (http://...) are used directly in SPARQL BINDINGS. Plain labels (e.g. 'JOMIS', 'DODTR') trigger post-filter mode where all systems are fetched and filtered by label. Example: ['http://semoss.org/ontologies/Concept/System/JOMIS'] or ['JOMIS', 'DODTR'].",
+                        "title": "systemList",
+                        "type": "string"
+                    },
+                    "database": {
+                        "description": "String UUID of the RDF engine to query (default: TAP_Core_Data 133db94b-4371-4763-bff9-edf7e5ed021b). Must be a valid SEMOSS engine ID containing System Similarity ontology triples.",
+                        "title": "database",
+                        "type": "string"
+                    },
+                    "systemQuery": {
+                        "description": "Optional String SPARQL BINDINGS or VALUES clause to filter systems (alternative to systemList). If both systemList and systemQuery are provided, systemQuery is ignored. Example: 'BINDINGS ?System {(<http://example.org/Sys1>)(<http://example.org/Sys2>)}'.",
+                        "title": "systemQuery",
+                        "type": "string"
+                    }
+                },
+                "required": ["database"]
+            },
+            "name": "GetSystemSimilarityDataSources",
+            "description": "Stage 1 of System Similarity pipeline. Executes 6 SPARQL queries against TAP_Core_Data RDF engine to compute per-variable pairwise similarity values for systems. Returns raw bucket data and caches paramDataHash, keyHash, systemLabelMap, and allSystems in the var-store for downstream reactors. Side effects: writes to var-store keys SYS_SIM_PARAM_DATA_HASH, SYS_SIM_KEY_HASH, SYS_SIM_SYSTEM_LABEL_MAP, SYS_SIM_ALL_SYSTEMS, SYS_SIM_RAW_SCORES, SYS_SIM_DBS_MODE. Output: MAP with paramDataHash (chart-ready buckets) and systemLabelMap (URI to label mapping).",
+            "_meta": {
+                "SMSS_MCP_UI": {},
+                "SMSS_FUNCTION_NAME": "GetSystemSimilarityDataSources",
+                "SMSS_MCP_EXECUTION": "auto"
+            },
+            "title": "Get System Similarity Data Sources"
+        },
+        {
+            "inputSchema": {
+                "type": "object",
+                "title": "ComputeSimilarityScores_Arguments",
+                "properties": {
+                    "selectedVars": {
+                        "description": "Optional List<String> of variable names to include in aggregation (default: all 6 buckets). Valid values: Business_Processes_Supported, Activities_Supported, Data_Subject_Area, Interfaces, Environment, User_Types. Only pairs with data in ALL selected variables are included in final results.",
+                        "title": "selectedVars",
+                        "type": "string"
+                    },
+                    "specifiedWeights": {
+                        "description": "Optional Map<String, Number> of per-variable weight multipliers for weighted average calculation (default: 1.0 for each variable). Variables absent from the map default to weight 1.0. Negative weights are coerced to 0. If all weights are 0, falls back to uniform mean. Example: {\"Environment\": 2.0, \"User_Types\": 1.0} weights Environment twice as heavily.",
+                        "title": "specifiedWeights",
+                        "type": "string"
+                    },
+                    "minimumScore": {
+                        "description": "Optional double threshold (0-100) for filtering composite scores (default: 0, no threshold). Pairs with composite scores below this value are excluded from the data array but may appear in partialPairs if they have partial category coverage. Example: 50.0 excludes pairs scoring below 50%.",
+                        "title": "minimumScore",
+                        "type": "string"
+                    }
+                },
+                "required": []
+            },
+            "name": "ComputeSimilarityScores",
+            "description": "Stage 2 of System Similarity pipeline. Reads cached paramDataHash and keyHash from var-store (populated by GetSystemSimilarityDataSources), aggregates weighted scores across selected variables, and applies minimumScore threshold. Returns final similarity rows with composite scores, partial pairs with incomplete category data, and system label mappings. Prerequisites: GetSystemSimilarityDataSources must be called first to populate var-store. Output: MAP with headers, data (complete pairs), partialPairs (incomplete category coverage), variablesUsed, specifiedWeightsUsed, totalPairsEvaluated, pairsAboveThreshold, allSystems, systemLabelMap.",
+            "_meta": {
+                "SMSS_MCP_UI": {},
+                "SMSS_FUNCTION_NAME": "ComputeSimilarityScores",
+                "SMSS_MCP_EXECUTION": "auto"
+            },
+            "title": "Compute Similarity Scores"
+        },
+        {
+            "inputSchema": {
+                "type": "object",
+                "title": "GetSystemsByCapabilityGroup_Arguments",
+                "properties": {"database": {
+                    "description": "Optional String UUID of the RDF engine to query (default: TAP_Core_Data 133db94b-4371-4763-bff9-edf7e5ed021b). Must contain System and CapabilityGroup ontology triples.",
+                    "title": "database",
+                    "type": "string"
+                }},
+                "required": []
+            },
+            "name": "GetSystemsByCapabilityGroup",
+            "description": "Read-only lookup reactor that queries TAP_Core_Data RDF engine for System-CapabilityGroup relationships and returns a map of CapabilityGroup labels to System labels. Used for client-side filtering in the System Similarity heatmap UI. No side effects, no var-store writes. Output: MAP where keys are CapabilityGroup display labels and values are sorted lists of System display labels belonging to that group.",
+            "_meta": {
+                "SMSS_MCP_UI": {},
+                "SMSS_FUNCTION_NAME": "GetSystemsByCapabilityGroup",
+                "SMSS_MCP_EXECUTION": "auto"
+            },
+            "title": "Get Systems By Capability Group"
+        },
+        {
+            "inputSchema": {
+                "type": "object",
+                "title": "RunSystemSimilarityHeatmap_Arguments",
+                "properties": {
+                    "systemList": {
+                        "description": "Optional List<String> of system URIs or labels to filter results. If omitted, all systems are returned. Absolute URIs are used directly in SPARQL BINDINGS; plain labels trigger post-filter mode.",
+                        "title": "systemList",
+                        "type": "string"
+                    },
+                    "database": {
+                        "description": "Optional String UUID of the RDF engine to query (default: TAP_Core_Data 133db94b-4371-4763-bff9-edf7e5ed021b). Must contain System Similarity ontology triples.",
+                        "title": "database",
+                        "type": "string"
+                    },
+                    "systemQuery": {
+                        "description": "Optional String SPARQL BINDINGS or VALUES clause to filter systems (alternative to systemList). If both are provided, systemQuery is ignored.",
+                        "title": "systemQuery",
+                        "type": "string"
+                    },
+                    "selectedVars": {
+                        "description": "Optional List<String> of variable names to include in aggregation (default: all 6 buckets). Valid values: Business_Processes_Supported, Activities_Supported, Data_Subject_Area, Interfaces, Environment, User_Types.",
+                        "title": "selectedVars",
+                        "type": "string"
+                    },
+                    "specifiedWeights": {
+                        "description": "Optional Map<String, Number> of per-variable weight multipliers for weighted average calculation (default: 1.0 for each). Example: {\"Environment\": 2.0, \"User_Types\": 1.0}.",
+                        "title": "specifiedWeights",
+                        "type": "string"
+                    },
+                    "minimumScore": {
+                        "description": "Optional double threshold (0-100) for filtering composite scores (default: 0, no threshold). Pairs below this value are excluded from data array.",
+                        "title": "minimumScore",
+                        "type": "string"
+                    }
+                },
+                "required": []
+            },
+            "name": "RunSystemSimilarityHeatmap",
+            "description": "Single-call orchestration reactor that internally runs Stage 1 (GetSystemSimilarityDataSources) and Stage 2 (ComputeSimilarityScores) to return a complete similarity heatmap payload. Accepts all parameters for both stages (database, systemList, systemQuery, selectedVars, specifiedWeights, minimumScore) and returns the same output as ComputeSimilarityScores. Side effects: temporarily writes to var-store during orchestration (same keys as Stage 1). Best for Playground single-shot usage \u2014 removes two-stage dependency complexity.",
+            "_meta": {
+                "SMSS_MCP_UI": {},
+                "SMSS_FUNCTION_NAME": "RunSystemSimilarityHeatmap",
+                "SMSS_MCP_EXECUTION": "auto"
+            },
+            "title": "Run System Similarity Heatmap"
+        }
+    ]
 }

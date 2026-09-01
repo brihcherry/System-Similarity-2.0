@@ -122,4 +122,35 @@ public class GetSystemsByCapabilityGroupReactor extends AbstractProjectReactor {
 
         return new NounMetadata(result, PixelDataType.MAP);
     }
+
+    /**
+     * Returns a description of this reactor's purpose, behavior, and output contract.
+     * Used by MakePixelMCP to generate high-quality MCP tool schemas.
+     *
+     * @return reactor description string
+     */
+    public String getReactorDescription() {
+        return "Read-only lookup reactor that queries TAP_Core_Data RDF engine for System-CapabilityGroup "
+            + "relationships and returns a map of CapabilityGroup labels to System labels. Used for client-side "
+            + "filtering in the System Similarity heatmap UI. No side effects, no var-store writes. "
+            + "Output: MAP where keys are CapabilityGroup display labels and values are sorted lists of "
+            + "System display labels belonging to that group.";
+    }
+
+    /**
+     * Returns a description for a specific parameter key.
+     * Used by MakePixelMCP to generate parameter-level MCP tool schema descriptions.
+     *
+     * @param key the parameter key
+     * @return parameter description string, or null if key is not recognized
+     */
+    public String getDescriptionForKey(String key) {
+        switch (key) {
+            case "database":
+                return "Optional String UUID of the RDF engine to query (default: TAP_Core_Data "
+                    + "133db94b-4371-4763-bff9-edf7e5ed021b). Must contain System and CapabilityGroup ontology triples.";
+            default:
+                return null;
+        }
+    }
 }

@@ -610,4 +610,45 @@ public class GetSystemSimilarityDataSourcesReactor extends AbstractProjectReacto
     }
     return null;
   }
+
+  /**
+   * Returns a description of this reactor's purpose, behavior, and output contract.
+   * Used by MakePixelMCP to generate high-quality MCP tool schemas.
+   *
+   * @return reactor description string
+   */
+  public String getReactorDescription() {
+    return "Stage 1 of System Similarity pipeline. Executes 6 SPARQL queries against TAP_Core_Data RDF engine "
+        + "to compute per-variable pairwise similarity values for systems. Returns raw bucket data and caches "
+        + "paramDataHash, keyHash, systemLabelMap, and allSystems in the var-store for downstream reactors. "
+        + "Side effects: writes to var-store keys SYS_SIM_PARAM_DATA_HASH, SYS_SIM_KEY_HASH, SYS_SIM_SYSTEM_LABEL_MAP, "
+        + "SYS_SIM_ALL_SYSTEMS, SYS_SIM_RAW_SCORES, SYS_SIM_DBS_MODE. "
+        + "Output: MAP with paramDataHash (chart-ready buckets) and systemLabelMap (URI to label mapping).";
+  }
+
+  /**
+   * Returns a description for a specific parameter key.
+   * Used by MakePixelMCP to generate parameter-level MCP tool schema descriptions.
+   *
+   * @param key the parameter key
+   * @return parameter description string, or null if key is not recognized
+   */
+  public String getDescriptionForKey(String key) {
+    switch (key) {
+      case "database":
+        return "String UUID of the RDF engine to query (default: TAP_Core_Data 133db94b-4371-4763-bff9-edf7e5ed021b). "
+            + "Must be a valid SEMOSS engine ID containing System Similarity ontology triples.";
+      case "systemList":
+        return "Optional List<String> of system URIs or labels to filter results. If omitted, all systems are returned. "
+            + "Absolute URIs (http://...) are used directly in SPARQL BINDINGS. Plain labels (e.g. 'JOMIS', 'DODTR') "
+            + "trigger post-filter mode where all systems are fetched and filtered by label. "
+            + "Example: ['http://semoss.org/ontologies/Concept/System/JOMIS'] or ['JOMIS', 'DODTR'].";
+      case "systemQuery":
+        return "Optional String SPARQL BINDINGS or VALUES clause to filter systems (alternative to systemList). "
+            + "If both systemList and systemQuery are provided, systemQuery is ignored. "
+            + "Example: 'BINDINGS ?System {(<http://example.org/Sys1>)(<http://example.org/Sys2>)}'.";
+      default:
+        return null;
+    }
+  }
 }

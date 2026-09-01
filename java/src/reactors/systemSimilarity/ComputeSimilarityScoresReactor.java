@@ -353,4 +353,47 @@ public class ComputeSimilarityScoresReactor extends AbstractProjectReactor {
     }
     return weights.isEmpty() ? null : weights;
   }
+
+  /**
+   * Returns a description of this reactor's purpose, behavior, and output contract.
+   * Used by MakePixelMCP to generate high-quality MCP tool schemas.
+   *
+   * @return reactor description string
+   */
+  public String getReactorDescription() {
+    return "Stage 2 of System Similarity pipeline. Reads cached paramDataHash and keyHash from var-store "
+        + "(populated by GetSystemSimilarityDataSources), aggregates weighted scores across selected variables, "
+        + "and applies minimumScore threshold. Returns final similarity rows with composite scores, partial pairs "
+        + "with incomplete category data, and system label mappings. "
+        + "Prerequisites: GetSystemSimilarityDataSources must be called first to populate var-store. "
+        + "Output: MAP with headers, data (complete pairs), partialPairs (incomplete category coverage), "
+        + "variablesUsed, specifiedWeightsUsed, totalPairsEvaluated, pairsAboveThreshold, allSystems, systemLabelMap.";
+  }
+
+  /**
+   * Returns a description for a specific parameter key.
+   * Used by MakePixelMCP to generate parameter-level MCP tool schema descriptions.
+   *
+   * @param key the parameter key
+   * @return parameter description string, or null if key is not recognized
+   */
+  public String getDescriptionForKey(String key) {
+    switch (key) {
+      case "selectedVars":
+        return "Optional List<String> of variable names to include in aggregation (default: all 6 buckets). "
+            + "Valid values: Business_Processes_Supported, Activities_Supported, Data_Subject_Area, Interfaces, "
+            + "Environment, User_Types. Only pairs with data in ALL selected variables are included in final results.";
+      case "specifiedWeights":
+        return "Optional Map<String, Number> of per-variable weight multipliers for weighted average calculation "
+            + "(default: 1.0 for each variable). Variables absent from the map default to weight 1.0. "
+            + "Negative weights are coerced to 0. If all weights are 0, falls back to uniform mean. "
+            + "Example: {\"Environment\": 2.0, \"User_Types\": 1.0} weights Environment twice as heavily.";
+      case "minimumScore":
+        return "Optional double threshold (0-100) for filtering composite scores (default: 0, no threshold). "
+            + "Pairs with composite scores below this value are excluded from the data array but may appear in "
+            + "partialPairs if they have partial category coverage. Example: 50.0 excludes pairs scoring below 50%.";
+      default:
+        return null;
+    }
+  }
 }
